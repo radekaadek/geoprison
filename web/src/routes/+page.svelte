@@ -2,12 +2,14 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
 
+  let map: L.Map
+
   async function loadMap() {
     // Import Leaflet only on the client side
     const L = await import('leaflet');
     
     // Create map after the component is mounted
-    let map = L.map('map').setView([52, 20], 7);
+    map = L.map('map').setView([52, 20], 7);
           
     let osmTopoLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -19,7 +21,7 @@
     })
 
     // Add the default layer to the map
-    osmTopoLayer.addTo(map);
+    cartoDarkLayer.addTo(map);
 
     let tileLayers = {
       "OpenStreetMap": osmTopoLayer,
@@ -27,6 +29,19 @@
     }
 
     let layerControl = L.control.layers(tileLayers).addTo(map);
+    let myMarker: L.Marker
+    map.on('mousedown', function(e) {
+      let lat = e.latlng.lat
+      let lon = e.latlng.lng
+      myMarker = L.marker([lat, lon]).addTo(map)
+        .bindPopup(`Lat: ${lat}, Lon: ${lon}`)
+        .openPopup();
+      })
+    map.on('mouseup', function(e) {
+      if (myMarker) {
+        myMarker.remove()
+      }
+    })
   }
   
   onMount(async () => {
@@ -36,13 +51,9 @@
   });
 </script>
 
+
 <div id="map"></div>
 
-<svelte:head>
-  {#if browser}
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
-  {/if}
-</svelte:head>
 
 <style>
   #map {
@@ -50,3 +61,12 @@
     width: 100vw;
   }
 </style>
+
+<svelte:head>
+  {#if browser}
+     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+  {/if}
+</svelte:head>
+
