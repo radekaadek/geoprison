@@ -2,14 +2,9 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
 
-  let map: L.Map
-
-  async function loadMap() {
-    // Import Leaflet only on the client side
-    const L = await import('leaflet');
-    
+  function loadMap(L: typeof import("leaflet")) {
     // Create map after the component is mounted
-    map = L.map('map').setView([52, 20], 7);
+    let map = L.map('map').setView([52, 20], 7);
           
     let osmTopoLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -29,6 +24,15 @@
     }
 
     let layerControl = L.control.layers(tileLayers).addTo(map);
+
+    return map
+  }
+
+  async function runApp() {
+    // Import Leaflet only on the client side
+    const L = await import('leaflet');
+    let map = loadMap(L);
+
     let myMarker: L.Marker
     map.on('mousedown', function(e) {
       let lat = e.latlng.lat
@@ -46,7 +50,7 @@
   
   onMount(async () => {
     if (browser) {
-      loadMap();
+      runApp();
     }
   });
 </script>
