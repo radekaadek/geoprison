@@ -2,14 +2,15 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
 
-  function loadMap(L: typeof import("leaflet")) {
+  async function loadMap(L: typeof import("leaflet")) {
     // Create map after the component is mounted
-    let map = L.map('map').setView([52, 20], 7);
+    const leafletDraw = await import('leaflet-draw');
+    const map = L.map('map').setView([52, 20], 7);
           
-    let osmTopoLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    const osmTopoLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     })
-    let cartoDarkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    const cartoDarkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 20
@@ -18,12 +19,41 @@
     // Add the default layer to the map
     cartoDarkLayer.addTo(map);
 
-    let tileLayers = {
+    const tileLayers = {
       "OpenStreetMap": osmTopoLayer,
       "CartoDark": cartoDarkLayer
     }
 
-    let layerControl = L.control.layers(tileLayers).addTo(map);
+    const layerControl = L.control.layers(tileLayers).addTo(map)
+
+    // FeatureGroup to store editable layers
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+        draw: {
+            polyline: false,  // Disable polylines
+            marker: false,    // Disable markers
+            circle: false,    // Disable circles
+            circlemarker: false, // Disable circle markers
+            rectangle: false, // Disable rectangles
+            polygon: {}     // Enable only polygons
+        }
+    });
+
+    map.addControl(drawControl);
+
+    map.on('draw:created', function (event) {
+      const layer = event.layer;  // Get the drawn polygon layer
+      drawnItems.addLayer(layer); // Add it to the feature group
+
+      const geojson = layer.toGeoJSON(); // Convert to GeoJSON
+      console.log("Drawn Polygon GeoJSON:", geojson); // Log the GeoJSON
+
+      // Optionally, disable further drawing
+      map.removeControl(drawControl);
+    });
+
 
     return map
   }
@@ -31,21 +61,7 @@
   async function runApp() {
     // Import Leaflet only on the client side
     const L = await import('leaflet');
-    let map = loadMap(L);
-
-    let myMarker: L.Marker
-    map.on('mousedown', function(e) {
-      let lat = e.latlng.lat
-      let lon = e.latlng.lng
-      myMarker = L.marker([lat, lon]).addTo(map)
-        .bindPopup(`Lat: ${lat}, Lon: ${lon}`)
-        .openPopup();
-      })
-    map.on('mouseup', function(e) {
-      if (myMarker) {
-        myMarker.remove()
-      }
-    })
+    const map = loadMap(L);
   }
   
   onMount(async () => {
@@ -71,6 +87,7 @@
      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
      crossorigin=""/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.2/leaflet.draw.css"/>
   {/if}
 </svelte:head>
 
