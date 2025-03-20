@@ -14,25 +14,25 @@
 
   function editPolygon(poly: any, L: leafletType) {
     selectedPolygonGeoJSON = poly
-    console.log("Selected polygon:", selectedPolygonGeoJSON)
-    if (selectedPolygonGeoJSON) {
-      const polygon = selectedPolygonGeoJSON['geometry']['coordinates'][0]
-      const zoom = map.getZoom()
-      const hexagons = polygonToCells(polygon, zoom-3)
-      //[formatAsGeoJson] 	boolean 	Whether to provide GeoJSON output: [lng, lat], closed loops
-      const boundaries = hexagons.map(c => cellToBoundary(c, true))
-      console.log("Boundaries:", boundaries)
-      const polygons = boundaries.map(b => L.polygon(b, {color: 'red', opacity: 0.5}))
-      // map hexagons to leaflet polygons
-      const idToPolygon = new Map(hexagons.map((hex, i) => [hex, polygons[i]]));
-      const layer = L.layerGroup(polygons).addTo(map)
-      console.log(layer.toGeoJSON())
-      if (hexagonLayer) {
-        layerControl.removeLayer(hexagonLayer)
-      }
-      hexagonLayer = layer
-      //layerControl.addOverlay(layer, "Hexagons").addTo(map)
+    if (!selectedPolygonGeoJSON) {
+      if (hexagonLayer)
+        hexagonLayer.remove()
+      return
     }
+    const polygon = selectedPolygonGeoJSON['geometry']['coordinates'][0]
+    const zoom = map.getZoom()
+    const hexagons = polygonToCells(polygon, zoom-3)
+    //[formatAsGeoJson] 	boolean 	Whether to provide GeoJSON output: [lng, lat], closed loops
+    const boundaries = hexagons.map(c => cellToBoundary(c, true))
+    const polygons = boundaries.map(b => L.polygon(b, {color: 'red', opacity: 0.5}))
+    // map hexagons to leaflet polygons
+    const idToPolygon = new Map(hexagons.map((hex, i) => [hex, polygons[i]]));
+    if (hexagonLayer) {
+      layerControl.removeLayer(hexagonLayer)
+    }
+    const layer = L.layerGroup(polygons).addTo(map)
+    hexagonLayer = layer
+    layerControl.addOverlay(layer, "Hexagons").addTo(map)
   }
 
   async function loadMap(L: leafletType, leafletDraw: leafletDrawType) {
