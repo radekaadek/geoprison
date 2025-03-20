@@ -26,32 +26,53 @@
 
     const layerControl = L.control.layers(tileLayers).addTo(map)
 
+    let selectedPolygonGeoJSON = null
+
     // FeatureGroup to store editable layers
     const drawnItems = new L.FeatureGroup();
     map.addLayer(drawnItems);
 
     const drawControl = new L.Control.Draw({
+        edit: {
+            featureGroup: drawnItems,
+            edit: {
+                poly: {
+                    allowIntersection: false, // doesn't work here
+              }
+            }
+        },
         draw: {
             polyline: false,  // Disable polylines
             marker: false,    // Disable markers
             circle: false,    // Disable circles
             circlemarker: false, // Disable circle markers
             rectangle: false, // Disable rectangles
-            polygon: {}     // Enable only polygons
+            polygon: {
+              allowIntersection: false, // Restricts shapes to simple polygons
+            }
         }
     });
 
     map.addControl(drawControl);
+
+    map.on('draw:drawstart', function (_) {
+      drawnItems.clearLayers();
+      selectedPolygonGeoJSON = null
+    });
 
     map.on('draw:created', function (event) {
       const layer = event.layer;  // Get the drawn polygon layer
       drawnItems.addLayer(layer); // Add it to the feature group
 
       const geojson = layer.toGeoJSON(); // Convert to GeoJSON
-      console.log("Drawn Polygon GeoJSON:", geojson); // Log the GeoJSON
+      selectedPolygonGeoJSON = geojson
+      console.log("CreaCreated polygon:", geojson)
+    });
 
-      // Optionally, disable further drawing
-      map.removeControl(drawControl);
+    map.on('draw:saved', function (event) {
+      const layer = event.layer;
+      const geojson = layer.toGeoJSON();
+      selectedPolygonGeoJSON = geojson
     });
 
 
