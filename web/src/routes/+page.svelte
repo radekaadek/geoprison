@@ -1,11 +1,43 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
+  import { cellToBoundary, polygonToCells } from 'h3-js';
 
-  async function loadMap(L: typeof import("leaflet")) {
+  let selectedPolygonGeoJSON = null
+  let drawnItems: L.FeatureGroup
+  let layerControl: L.Control.Layers
+  let map: L.Map
+  let hexagonLayer: L.Layer | null = null
+
+  type leafletType = typeof import("leaflet")
+  type leafletDrawType = typeof import("leaflet-draw")
+
+  function editPolygon(poly: any, L: leafletType) {
+    selectedPolygonGeoJSON = poly
+    console.log("Selected polygon:", selectedPolygonGeoJSON)
+    if (selectedPolygonGeoJSON) {
+      const polygon = selectedPolygonGeoJSON['geometry']['coordinates'][0]
+      const zoom = map.getZoom()
+      const hexagons = polygonToCells(polygon, zoom-3)
+      //[formatAsGeoJson] 	boolean 	Whether to provide GeoJSON output: [lng, lat], closed loops
+      const boundaries = hexagons.map(c => cellToBoundary(c, true))
+      console.log("Boundaries:", boundaries)
+      const polygons = boundaries.map(b => L.polygon(b, {color: 'red', opacity: 0.5}))
+      // map hexagons to leaflet polygons
+      const idToPolygon = new Map(hexagons.map((hex, i) => [hex, polygons[i]]));
+      const layer = L.layerGroup(polygons).addTo(map)
+      console.log(layer.toGeoJSON())
+      if (hexagonLayer) {
+        layerControl.removeLayer(hexagonLayer)
+      }
+      hexagonLayer = layer
+      //layerControl.addOverlay(layer, "Hexagons").addTo(map)
+    }
+  }
+
+  async function loadMap(L: leafletType, leafletDraw: leafletDrawType) {
     // Create map after the component is mounted
-    const leafletDraw = await import('leaflet-draw');
-    const map = L.map('map').setView([52, 20], 7);
+    map = L.map('map').setView([52, 20], 7);
           
     const osmTopoLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -24,13 +56,12 @@
       "CartoDark": cartoDarkLayer
     }
 
-    const layerControl = L.control.layers(tileLayers).addTo(map)
-
-    let selectedPolygonGeoJSON = null
+    layerControl = L.control.layers(tileLayers).addTo(map)
 
     // FeatureGroup to store editable layers
-    const drawnItems = new L.FeatureGroup();
-    map.addLayer(drawnItems);
+    drawnItems = new L.FeatureGroup().addTo(map)
+    //map.addLayer(drawnItems);
+    layerControl.addOverlay(drawnItems, "Polygons")
 
     const drawControl = new L.Control.Draw({
         edit: {
@@ -57,7 +88,7 @@
 
     map.on('draw:drawstart', function (_) {
       drawnItems.clearLayers();
-      selectedPolygonGeoJSON = null
+      editPolygon(null, L)
     });
 
     map.on('draw:created', function (event) {
@@ -65,15 +96,15 @@
       drawnItems.addLayer(layer); // Add it to the feature group
 
       const geojson = layer.toGeoJSON(); // Convert to GeoJSON
-      selectedPolygonGeoJSON = geojson
-      console.log("CreaCreated polygon:", geojson)
+      editPolygon(geojson, L)
     });
 
     map.on('draw:saved', function (event) {
       const layer = event.layer;
       const geojson = layer.toGeoJSON();
-      selectedPolygonGeoJSON = geojson
+      editPolygon(geojson, L)
     });
+
 
 
     return map
@@ -82,7 +113,8 @@
   async function runApp() {
     // Import Leaflet only on the client side
     const L = await import('leaflet');
-    const map = loadMap(L);
+    const leafletDraw = await import('leaflet-draw');
+    const map = loadMap(L, leafletDraw)
   }
   
   onMount(async () => {
