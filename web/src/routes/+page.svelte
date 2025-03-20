@@ -8,15 +8,28 @@
   let layerControl: L.Control.Layers
   let map: L.Map
   let hexagonLayer: L.Layer | null = null
+  let idToPolygon: Map<string, L.Polygon> = new Map()
 
   type leafletType = typeof import("leaflet")
   type leafletDrawType = typeof import("leaflet-draw")
 
+  function removeHexagons() {
+    if (hexagonLayer) {
+      idToPolygon = new Map()
+      layerControl.removeLayer(hexagonLayer)
+      drawnItems.removeFrom(map)
+      hexagonLayer.remove()
+      hexagonLayer = null
+    }
+  }
+
+  // poly is a polygon geojson
   function editPolygon(poly: any, L: leafletType) {
     selectedPolygonGeoJSON = poly
     if (!selectedPolygonGeoJSON) {
-      if (hexagonLayer)
-        hexagonLayer.remove()
+      if (hexagonLayer) {
+        removeHexagons()
+      }
       return
     }
     const polygon = selectedPolygonGeoJSON['geometry']['coordinates'][0]
@@ -25,12 +38,11 @@
     //[formatAsGeoJson] 	boolean 	Whether to provide GeoJSON output: [lng, lat], closed loops
     const boundaries = hexagons.map(c => cellToBoundary(c, true))
     const polygons = boundaries.map(b => L.polygon(b, {color: 'red', opacity: 0.5}))
-    // map hexagons to leaflet polygons
-    const idToPolygon = new Map(hexagons.map((hex, i) => [hex, polygons[i]]));
+    idToPolygon = new Map(hexagons.map((hex, i) => [hex, polygons[i]]));
     if (hexagonLayer) {
-      layerControl.removeLayer(hexagonLayer)
+      removeHexagons()
     }
-    const layer = L.layerGroup(polygons).addTo(map)
+    const layer = L.layerGroup(idToPolygon.values().toArray()).addTo(drawnItems).addTo(map)
     hexagonLayer = layer
     layerControl.addOverlay(layer, "Hexagons").addTo(map)
   }
@@ -61,7 +73,7 @@
     // FeatureGroup to store editable layers
     drawnItems = new L.FeatureGroup().addTo(map)
     //map.addLayer(drawnItems);
-    layerControl.addOverlay(drawnItems, "Polygons")
+    layerControl.addOverlay(drawnItems, "Polygon")
 
     const drawControl = new L.Control.Draw({
         edit: {
