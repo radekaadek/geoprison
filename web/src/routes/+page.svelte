@@ -3,7 +3,7 @@
   import { browser } from '$app/environment';
   import { cellToBoundary, cellToLatLng, latLngToCell, polygonToCells } from 'h3-js';
 
-  let selectedPolygonGeoJSON = null
+  let selectedPolygonGeoJSON: any = null
   let layerControl: L.Control.Layers
   let map: L.Map
   let idToPolygon: Map<string, L.Polygon> = new Map()
@@ -13,6 +13,8 @@
   let showStartGameButton = false
   let startingMapZoom = 7
   let hexLevel = zoomToHexSize(startingMapZoom)
+  let gameStarted = false
+  let L: leafletType
 
   const polygonLayerName = "Polygon"
   const hexagonLayerName = "Hexagons"
@@ -58,7 +60,7 @@
     </select>
   `
 
-  const getPolygonPopup = (L: leafletType, hex: string) => {
+  const getPolygonPopup = (hex: string) => {
     const popup = L.popup()
     const [lat, lng] = cellToLatLng(hex);
     popup.setLatLng(L.latLng(lng, lat));
@@ -66,14 +68,14 @@
     return popup
   }
 
-  const onPolygonClick = (L: leafletType, e: L.LeafletMouseEvent) => {
+  const onPolygonClick = (e: L.LeafletMouseEvent) => {
     const previousPopup = document.getElementById("strategy")
     if (previousPopup) {
       previousPopup.remove()
     }
     const hex = latLngToCell(e.latlng.lng, e.latlng.lat, hexLevel)
     const polygon = idToPolygon.get(hex)
-    const popup = getPolygonPopup(L, hex)
+    const popup = getPolygonPopup(hex)
     popup.openOn(map)
     const select = document.getElementById(strategyId) as HTMLSelectElement | null
     if (!select) {
@@ -88,7 +90,7 @@
   }
 
   // poly is a polygon geojson
-  function editPolygon(poly: any, L: leafletType) {
+  function editPolygon(poly: any) {
     removeHexagons()
     selectedPolygonGeoJSON = poly
     if (!selectedPolygonGeoJSON) {
@@ -102,14 +104,12 @@
     const polygons = boundaries.map(b => L.polygon(b, {
       color: color,
       opacity: 0.5,
-    }).on("click", (e) => onPolygonClick(L, e)))
+    }).on("click", (e) => onPolygonClick(e)))
     idToPolygon = new Map(hexagons.map((hex, i) => [hex, polygons[i]]));
     hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
     layerControl.addOverlay(hexagonLayer, hexagonLayerName)
     hexagonLayer.addTo(map)
-    if (hexagons.length > 0) {
-      showStartGameButton = true
-    }
+    hexagons.length > 0 ? showStartGameButton = true : showStartGameButton = false
   }
 
   function zoomToHexSize(zoom: number): number {
@@ -125,7 +125,7 @@
     return zoomToHexLevel.has(zoom) ? zoomToHexLevel.get(zoom) as number : Math.floor(zoom*0.6)
   }
 
-  async function loadMap(L: leafletType) {
+  async function loadMap() {
     // Create map after the component is mounted
     map = L.map('map').setView([52, 20], startingMapZoom);
           
@@ -184,7 +184,7 @@
       const fg = new L.FeatureGroup()
       fg.addLayer(event.layer)
       const polygonGeoJSON = fg.toGeoJSON()
-      editPolygon(polygonGeoJSON, L)
+      editPolygon(polygonGeoJSON)
     })
 
     map.on("pm:edit", (event) => {
@@ -192,35 +192,50 @@
       const fg = new L.FeatureGroup()
       fg.addLayer(event.layer)
       const polygonGeoJSON = fg.toGeoJSON()
-      editPolygon(polygonGeoJSON, L)
+      editPolygon(polygonGeoJSON)
     })
 
     return map
   }
   async function loadLeafletModules() {
-    const [L, leafletCSS, geoman] = await Promise.all([
+    const [Leaflet, leafletCSS, geoman] = await Promise.all([
         import('leaflet'),
         import('leaflet/dist/leaflet.css'),
         import('@geoman-io/leaflet-geoman-free')
     ]);
+    L = Leaflet
 
     return { L, leafletCSS, geoman };
   }
   async function runApp() {
-    loadLeafletModules().then(({ L }) => {
-        loadMap(L)
+    loadLeafletModules().then(() => {
+        loadMap()
     });
 
   }
 
   async function startGame() {
     console.log("start game")
+    const idStrategies = idToStrategy
+    removeHexagons()
+    const hexagons = idStrategies.keys()
+    const hexArray = Array.from(hexagons)
+    const polygons = hexArray.map((hID) => {
+      const boundary = cellToBoundary(hID, true)
+      return L.polygon(boundary, {
+        color: strategy_to_color.get(idStrategies.get(hID) as string),
+        opacity: 0.5,
+      })
+    })
+    const polyArray = Array.from(polygons)
+    idToPolygon = new Map(hexArray.map((hex, i) => [hex, polyArray[i]]))
+    hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
+    layerControl.addOverlay(hexagonLayer, hexagonLayerName)
+    hexagonLayer.addTo(map)
   }
   
   onMount(async () => {
-    if (browser) {
       runApp();
-    }
   });
 </script>
 
@@ -228,7 +243,7 @@
 <div id="map">
 </div>
 {#if showStartGameButton}
-  <button on:click={startGame}>Start Game</button>
+  <button on:click={() => startGame()}>Start Game</button>
 {/if}
 <div id="hexLevel">
   <input type="range" min="0" max="15" step="1" bind:value={hexLevel}
