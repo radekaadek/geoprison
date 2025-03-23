@@ -40,10 +40,6 @@
     layerControl.addOverlay(polygonLayer, polygonLayerName)
   }
 
-  $: if (hexLevel) {
-    console.log("Hex level changed to " + hexLevel)
-  }
-
   function removeHexagons() {
     if (hexagonLayer) {
       layerControl.removeLayer(hexagonLayer)
@@ -102,7 +98,7 @@
     const hexagons = polygonToCells(polygon, hexLevel)
     const boundaries = hexagons.map(c => cellToBoundary(c, true))
     idToStrategy = new Map(hexagons.map((hex, i) => [hex, defaultStrategy]));
-    const color = strategy_to_color.get("Tit-for-tat")
+    const color = strategy_to_color.get(defaultStrategy)
     const polygons = boundaries.map(b => L.polygon(b, {
       color: color,
       opacity: 0.5,
@@ -176,8 +172,6 @@
     }
 
     map.on("zoomend", (e) => {
-      const msg = `Zoom level: ${map.getZoom()}`
-      console.log(msg)
       hexLevel = zoomToHexSize(map.getZoom())
     });
 
@@ -242,6 +236,14 @@
      on:mouseleave={() => map.dragging.enable()}>
 </div>
 
+<div id="defaultStrategy">
+  <select bind:value={defaultStrategy}>
+    {#each [...strategy_to_color.keys()] as strategy}
+      <option value={strategy}>{strategy}</option>
+    {/each}
+  </select>
+</div>
+
 
 <style>
   #map {
@@ -271,6 +273,18 @@
       font-size: 16px;
       padding: 10px 20px;
     }
+  }
+
+  #defaultStrategy {
+    position: absolute;
+    left: 0%;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1rem; /* Large text */
+    padding: 0.2rem;
+    z-index: 1000;
+    background-color: #add8e6;
+    border: 1px solid #6abf69; /* Slightly darker green for contrast */
   }
 
   input[type="range"] {
