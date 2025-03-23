@@ -10,6 +10,18 @@
   let idToStrategy: Map<string, string> = new Map()
   let polygonLayer: L.Layer | null = null
   let hexagonLayer: L.Layer | null = null
+  let showStartGameButton = false
+
+  const polygonLayerName = "Polygon"
+
+  const strategy_to_color: Map<string, string> = new Map([
+    ["Tit-for-tat", "blue"],
+    ["Random", "black"],
+    ["Harrington", "red"],
+    ["Tester", "yellow"],
+    ["Suspicious tit-for-tat", "purple"],
+    ["Forgiving tit-for-tat", "green"],
+  ])
 
   type leafletType = typeof import("leaflet")
 
@@ -21,8 +33,7 @@
   }
 
   $: if (polygonLayer) {
-    layerControl.addOverlay(polygonLayer, "Polygon")
-    polygonLayer.addTo(map)
+    layerControl.addOverlay(polygonLayer, polygonLayerName)
   }
 
   function removeHexagons() {
@@ -31,49 +42,36 @@
       map.removeLayer(hexagonLayer)
     }
     idToPolygon = new Map()
+    idToStrategy = new Map()
   }
 
-  const strategy_to_color: Map<string, string> = new Map([
-    ["Tit-for-tat", "blue"],
-    ["Random", "black"],
-    ["Harrington", "red"],
-    ["Tester", "yellow"],
-    ["Suspicious tit-for-tat", "purple"],
-    ["Forgiving tit-for-tat", "green"],
-  ])
-
+  const strategyId = 'strategy'
+  const polygonPopupContent = `
+    <select id='${strategyId}'>
+      ${[...strategy_to_color.keys()]
+        .map(strategy => `<option value='${strategy}'>${strategy}</option>`)
+        .join("")}
+    </select>
+  `
 
   const onPolygonClick = (L: leafletType, e: L.LeafletMouseEvent) => {
-    // delete the previus popup if it exists
     const previousPopup = document.getElementById("strategy")
     if (previousPopup) {
       previousPopup.remove()
     }
-    // show a popup with a list to choose from
     const hex = latLngToCell(e.latlng.lng, e.latlng.lat, map.getZoom()-3)
     const polygon = idToPolygon.get(hex)
-    // show a popup with a list to choose from
     const popup = L.popup()
-    const latlng = cellToLatLng(hex)
-    const lnglat = L.latLng(latlng[1], latlng[0])
-    popup.setLatLng(lnglat)
-    const strategies = Array.from(strategy_to_color.keys())
-    console.log(strategies)
-    let poupContent = "<select id='strategy'>"
-    for (const strategy of strategies) {
-      poupContent += `<option value='${strategy}'>${strategy}</option>`
-    }
-    poupContent += "</select>"
-    popup.setContent(poupContent)
+    const [lat, lng] = cellToLatLng(hex);
+    popup.setLatLng(L.latLng(lng, lat));
+    popup.setContent(polygonPopupContent)
     popup.openOn(map)
-    const select = document.getElementById("strategy") as HTMLSelectElement | null
+    const select = document.getElementById(strategyId) as HTMLSelectElement | null
     if (!select) {
-      console.log("no select")
       return
     }
     select.addEventListener("change", (e) => {
       const strategy = select.value
-      console.log(strategy)
       polygon?.setStyle({ color: strategy_to_color.get(strategy) })
       idToStrategy.set(hex, strategy)
     })
@@ -100,6 +98,7 @@
     hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
     layerControl.addOverlay(hexagonLayer, "Hexagons")
     hexagonLayer.addTo(map)
+    showStartGameButton = true
   }
 
   async function loadMap(L: leafletType) {
@@ -175,6 +174,10 @@
     });
 
   }
+
+  async function startGame() {
+    console.log("start game")
+  }
   
   onMount(async () => {
     if (browser) {
@@ -184,7 +187,11 @@
 </script>
 
 
-<div id="map"></div>
+<div id="map">
+</div>
+{#if showStartGameButton}
+  <button on:click={startGame}>Start Game</button>
+{/if}
 
 
 <style>
@@ -192,6 +199,30 @@
     height: 100vh;
     width: 100vw;
   }
+  button {
+    background-color: red;
+    color: white;
+    font-size: 18px; /* Smaller font for responsiveness */
+    padding: 12px 24px; /* Adjusted padding */
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    position: absolute;
+    top: 20px; /* Move it to the top */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999; /* Ensure it's above Leaflet */
+    white-space: nowrap; /* Prevent text wrapping */
+  }
+
+  /* Make it more responsive */
+  @media (max-width: 600px) {
+    button {
+      font-size: 16px;
+      padding: 10px 20px;
+    }
+  }
+
 </style>
 
 <svelte:head>
