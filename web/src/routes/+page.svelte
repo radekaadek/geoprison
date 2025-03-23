@@ -11,9 +11,13 @@
   let polygonLayer: L.Layer | null = null
   let hexagonLayer: L.Layer | null = null
   let showStartGameButton = false
+  let startingMapZoom = 7
+  let hexLevel = zoomToHexSize(startingMapZoom)
 
   const polygonLayerName = "Polygon"
+  const hexagonLayerName = "Hexagons"
 
+  let defaultStrategy = "Tit-for-tat"
   const strategy_to_color: Map<string, string> = new Map([
     ["Tit-for-tat", "blue"],
     ["Random", "black"],
@@ -36,6 +40,10 @@
     layerControl.addOverlay(polygonLayer, polygonLayerName)
   }
 
+  $: if (hexLevel) {
+    console.log("Hex level changed to " + hexLevel)
+  }
+
   function removeHexagons() {
     if (hexagonLayer) {
       layerControl.removeLayer(hexagonLayer)
@@ -54,20 +62,26 @@
     </select>
   `
 
+  const getPolygonPopup = (L: leafletType, hex: string) => {
+    const popup = L.popup()
+    const [lat, lng] = cellToLatLng(hex);
+    popup.setLatLng(L.latLng(lng, lat));
+    popup.setContent(polygonPopupContent)
+    return popup
+  }
+
   const onPolygonClick = (L: leafletType, e: L.LeafletMouseEvent) => {
     const previousPopup = document.getElementById("strategy")
     if (previousPopup) {
       previousPopup.remove()
     }
-    const hex = latLngToCell(e.latlng.lng, e.latlng.lat, map.getZoom()-3)
+    const hex = latLngToCell(e.latlng.lng, e.latlng.lat, hexLevel)
     const polygon = idToPolygon.get(hex)
-    const popup = L.popup()
-    const [lat, lng] = cellToLatLng(hex);
-    popup.setLatLng(L.latLng(lng, lat));
-    popup.setContent(polygonPopupContent)
+    const popup = getPolygonPopup(L, hex)
     popup.openOn(map)
     const select = document.getElementById(strategyId) as HTMLSelectElement | null
     if (!select) {
+      alert("Something went wrong, could not find select element")
       return
     }
     select.addEventListener("change", (e) => {
@@ -84,11 +98,10 @@
     if (!selectedPolygonGeoJSON) {
       return
     }
-    const zoom = map.getZoom()
     const polygon = poly.features[0].geometry.coordinates
-    const hexagons = polygonToCells(polygon, zoom-3)
+    const hexagons = polygonToCells(polygon, hexLevel)
     const boundaries = hexagons.map(c => cellToBoundary(c, true))
-    idToStrategy = new Map(hexagons.map((hex, i) => [hex, "Tit-for-tat"]));
+    idToStrategy = new Map(hexagons.map((hex, i) => [hex, defaultStrategy]));
     const color = strategy_to_color.get("Tit-for-tat")
     const polygons = boundaries.map(b => L.polygon(b, {
       color: color,
@@ -96,14 +109,29 @@
     }).on("click", (e) => onPolygonClick(L, e)))
     idToPolygon = new Map(hexagons.map((hex, i) => [hex, polygons[i]]));
     hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
-    layerControl.addOverlay(hexagonLayer, "Hexagons")
+    layerControl.addOverlay(hexagonLayer, hexagonLayerName)
     hexagonLayer.addTo(map)
-    showStartGameButton = true
+    if (hexagons.length > 0) {
+      showStartGameButton = true
+    }
+  }
+
+  function zoomToHexSize(zoom: number): number {
+    const zoomToHexLevel: Map<number, number> = new Map([
+      [8, 5],
+      [11, 7],
+      [13, 8],
+      [14, 9],
+      [15, 10],
+      [16, 10],
+      [17, 11],
+    ])
+    return zoomToHexLevel.has(zoom) ? zoomToHexLevel.get(zoom) as number : Math.floor(zoom*0.6)
   }
 
   async function loadMap(L: leafletType) {
     // Create map after the component is mounted
-    map = L.map('map').setView([52, 20], 7);
+    map = L.map('map').setView([52, 20], startingMapZoom);
           
     const osmTopoLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -111,7 +139,8 @@
     const cartoDarkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: 'abcd',
-      maxZoom: 20
+      maxZoom: 20,
+      minZoom: 2
     })
 
     // Add the default layer to the map
@@ -135,6 +164,21 @@
       editMode: false,
       dragMode: false,
       cutPolygon: false
+    });
+
+    const leafletContainer = document.querySelector(".leaflet-top.leaflet-left");
+    const hexLevelDiv = document.getElementById("hexLevel");
+
+    if (leafletContainer && hexLevelDiv) {
+      leafletContainer.appendChild(hexLevelDiv);
+    } else {
+      console.error("Could not find leaflet container or hexLevelDiv");
+    }
+
+    map.on("zoomend", (e) => {
+      const msg = `Zoom level: ${map.getZoom()}`
+      console.log(msg)
+      hexLevel = zoomToHexSize(map.getZoom())
     });
 
     map.on("pm:create", (event) => {
@@ -192,6 +236,11 @@
 {#if showStartGameButton}
   <button on:click={startGame}>Start Game</button>
 {/if}
+<div id="hexLevel">
+  <input type="range" min="0" max="15" step="1" bind:value={hexLevel}
+     on:mouseenter={() => map.dragging.disable()} 
+     on:mouseleave={() => map.dragging.enable()}>
+</div>
 
 
 <style>
@@ -199,6 +248,7 @@
     height: 100vh;
     width: 100vw;
   }
+
   button {
     background-color: red;
     color: white;
@@ -221,6 +271,12 @@
       font-size: 16px;
       padding: 10px 20px;
     }
+  }
+
+  input[type="range"] {
+    position: relative;
+    z-index: 1000;
+    pointer-events: auto;
   }
 
 </style>
