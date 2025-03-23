@@ -218,6 +218,11 @@
     showStartGameButton = false
     gameStarted = true
     map.closePopup();
+    map.pm.addControls({
+      drawPolygon: false,
+      drawRectangle: false,
+    })
+      
     console.log("start game")
     const idStrategies = idToStrategy
     removeHexagons()
