@@ -215,6 +215,9 @@
   }
 
   async function startGame() {
+    showStartGameButton = false
+    gameStarted = true
+    map.closePopup();
     console.log("start game")
     const idStrategies = idToStrategy
     removeHexagons()
@@ -245,19 +248,24 @@
 {#if showStartGameButton}
   <button on:click={() => startGame()}>Start Game</button>
 {/if}
-<div id="hexLevel">
-  <input type="range" min="0" max="15" step="1" bind:value={hexLevel}
-     on:mouseenter={() => map.dragging.disable()} 
-     on:mouseleave={() => map.dragging.enable()}>
-</div>
 
-<div id="defaultStrategy">
-  <select bind:value={defaultStrategy}>
-    {#each [...strategy_to_color.keys()] as strategy}
-      <option value={strategy}>{strategy}</option>
-    {/each}
-  </select>
-</div>
+
+{#if !gameStarted}
+  <div id="hexLevel">
+    <input type="range" min="0" max="15" step="1" bind:value={hexLevel}
+       on:mouseenter={() => map.dragging.disable()} 
+       on:mouseleave={() => map.dragging.enable()}>
+  </div>
+{/if}
+{#if !gameStarted}
+  <div id="defaultStrategy">
+    <select bind:value={defaultStrategy}>
+      {#each [...strategy_to_color.keys()] as strategy}
+        <option value={strategy}>{strategy}</option>
+      {/each}
+    </select>
+  </div>
+{/if}
 
 
 <style>
@@ -300,6 +308,28 @@
     z-index: 1000;
     background-color: #add8e6;
     border: 1px solid #6abf69; /* Slightly darker green for contrast */
+  }
+
+  /* Responsive Design */
+  @media (max-width: 768px) {
+      #defaultStrategy {
+          left: 50%;
+          top: auto;
+          bottom: 10%;
+          transform: translateX(-50%);
+          font-size: 1.2rem; /* Larger font for mobile readability */
+          width: 90%; /* Ensures it fits within smaller screens */
+          text-align: center;
+          padding: 0.6rem;
+      }
+  }
+
+  @media (max-width: 480px) {
+      #defaultStrategy {
+          width: 95%;
+          font-size: 1.1rem;
+          padding: 0.8rem;
+      }
   }
 
   input[type="range"] {
