@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { cellToBoundary, latLngToCell, polygonToCells } from 'h3-js';
+  import { cellToBoundary, cellToLatLng, latLngToCell, polygonToCells } from 'h3-js';
 
   let selectedPolygonGeoJSON = null
   let layerControl: L.Control.Layers
@@ -33,13 +33,50 @@
     idToPolygon = new Map()
   }
 
-  const onPolygonClick = (e: L.LeafletMouseEvent) => {
+  const strategy_to_color: Map<string, string> = new Map([
+    ["Tit-for-tat", "blue"],
+    ["Random", "black"],
+    ["Harrington", "red"],
+    ["Tester", "yellow"],
+    ["Suspicious tit-for-tat", "purple"],
+    ["Forgiving tit-for-tat", "green"],
+  ])
+
+
+  const onPolygonClick = (L: leafletType, e: L.LeafletMouseEvent) => {
+    // delete the previus popup if it exists
+    const previousPopup = document.getElementById("strategy")
+    if (previousPopup) {
+      previousPopup.remove()
+    }
     // show a popup with a list to choose from
-    let colors = ["red", "blue", "green", "yellow", "purple", "orange", "black", "white"]
     const hex = latLngToCell(e.latlng.lng, e.latlng.lat, map.getZoom()-3)
     const polygon = idToPolygon.get(hex)
-    polygon?.setStyle({ color: colors[Math.floor(Math.random() * colors.length)] })
-    console.log(polygon)
+    // show a popup with a list to choose from
+    const popup = L.popup()
+    const latlng = cellToLatLng(hex)
+    const lnglat = L.latLng(latlng[1], latlng[0])
+    popup.setLatLng(lnglat)
+    const strategies = Array.from(strategy_to_color.keys())
+    console.log(strategies)
+    let poupContent = "<select id='strategy'>"
+    for (const strategy of strategies) {
+      poupContent += `<option value='${strategy}'>${strategy}</option>`
+    }
+    poupContent += "</select>"
+    popup.setContent(poupContent)
+    popup.openOn(map)
+    const select = document.getElementById("strategy") as HTMLSelectElement | null
+    if (!select) {
+      console.log("no select")
+      return
+    }
+    select.addEventListener("change", (e) => {
+      const strategy = select.value
+      console.log(strategy)
+      polygon?.setStyle({ color: strategy_to_color.get(strategy) })
+      idToStrategy.set(hex, strategy)
+    })
   }
 
   // poly is a polygon geojson
@@ -53,10 +90,12 @@
     const polygon = poly.features[0].geometry.coordinates
     const hexagons = polygonToCells(polygon, zoom-3)
     const boundaries = hexagons.map(c => cellToBoundary(c, true))
+    idToStrategy = new Map(hexagons.map((hex, i) => [hex, "Tit-for-tat"]));
+    const color = strategy_to_color.get("Tit-for-tat")
     const polygons = boundaries.map(b => L.polygon(b, {
-      color: 'red',
+      color: color,
       opacity: 0.5,
-    }).on("click", onPolygonClick))
+    }).on("click", (e) => onPolygonClick(L, e)))
     idToPolygon = new Map(hexagons.map((hex, i) => [hex, polygons[i]]));
     hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
     layerControl.addOverlay(hexagonLayer, "Hexagons")
