@@ -33,7 +33,9 @@
 	},
 	"dependencies": {
 		"@geoman-io/leaflet-geoman-free": "^2.18.3",
+		"@geoman-io/maplibre-geoman-free": "^0.3.0",
 		"h3-js": "^4.1.0",
-		"leaflet": "^1.9.4"
+		"leaflet": "^1.9.4",
+		"maplibre-gl": "^5.2.0"
 	}
 }

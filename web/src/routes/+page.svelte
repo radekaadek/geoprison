@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { cellToBoundary, polygonToCells } from 'h3-js';
+  import { cellToBoundary, latLngToCell, polygonToCells } from 'h3-js';
 
   let selectedPolygonGeoJSON = null
   let layerControl: L.Control.Layers
   let map: L.Map
   let idToPolygon: Map<string, L.Polygon> = new Map()
+  let idToStrategy: Map<string, string> = new Map()
   let polygonLayer: L.Layer | null = null
   let hexagonLayer: L.Layer | null = null
 
@@ -24,16 +25,21 @@
     polygonLayer.addTo(map)
   }
 
-  $: if (idToPolygon) {
-  }
-
-
   function removeHexagons() {
     if (hexagonLayer) {
       layerControl.removeLayer(hexagonLayer)
       map.removeLayer(hexagonLayer)
     }
     idToPolygon = new Map()
+  }
+
+  const onPolygonClick = (e: L.LeafletMouseEvent) => {
+    // show a popup with a list to choose from
+    let colors = ["red", "blue", "green", "yellow", "purple", "orange", "black", "white"]
+    const hex = latLngToCell(e.latlng.lng, e.latlng.lat, map.getZoom()-3)
+    const polygon = idToPolygon.get(hex)
+    polygon?.setStyle({ color: colors[Math.floor(Math.random() * colors.length)] })
+    console.log(polygon)
   }
 
   // poly is a polygon geojson
@@ -45,10 +51,12 @@
     }
     const zoom = map.getZoom()
     const polygon = poly.features[0].geometry.coordinates
-    console.log(polygon)
     const hexagons = polygonToCells(polygon, zoom-3)
     const boundaries = hexagons.map(c => cellToBoundary(c, true))
-    const polygons = boundaries.map(b => L.polygon(b, {color: 'red', opacity: 0.5}))
+    const polygons = boundaries.map(b => L.polygon(b, {
+      color: 'red',
+      opacity: 0.5,
+    }).on("click", onPolygonClick))
     idToPolygon = new Map(hexagons.map((hex, i) => [hex, polygons[i]]));
     hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
     layerControl.addOverlay(hexagonLayer, "Hexagons")
@@ -85,16 +93,28 @@
       drawPolyline: false,
       drawText: false,
       drawMarker: false,
+      removalMode: false,
+      editMode: false,
+      dragMode: false,
+      cutPolygon: false
     });
 
-    map.on("pm:create", (shape) => {
+    map.on("pm:create", (event) => {
       removeAllLayers()
 
       if (polygonLayer)
         layerControl.removeLayer(polygonLayer);
-      polygonLayer = shape.layer
+      polygonLayer = event.layer
       const fg = new L.FeatureGroup()
-      fg.addLayer(shape.layer)
+      fg.addLayer(event.layer)
+      const polygonGeoJSON = fg.toGeoJSON()
+      editPolygon(polygonGeoJSON, L)
+    })
+
+    map.on("pm:edit", (event) => {
+      removeAllLayers()
+      const fg = new L.FeatureGroup()
+      fg.addLayer(event.layer)
       const polygonGeoJSON = fg.toGeoJSON()
       editPolygon(polygonGeoJSON, L)
     })
