@@ -31,6 +31,19 @@
     ["Forgiving tit-for-tat", "brown"],
     ["Grudger", "orange"],
   ])
+  const strategyToID: Map<string, number> = new Map([
+    ["Tit-for-tat", 0],
+    ["Random", 1],
+    ["Harrington", 2],
+    ["Tester", 3],
+    ["Defector", 4],
+    ["Cooperator", 5],
+    ["Alternator", 6],
+    ["Suspicious tit-for-tat", 7],
+    ["Forgiving tit-for-tat", 8],
+    ["Grudger", 9],
+  ])
+
 
   type leafletType = typeof import("leaflet")
 
@@ -240,7 +253,17 @@
 
   async function game_step(idStrategies: Map<string, string>, numberOfRounds: number = 15): Promise<any> {
     const url = `${serverURL}/game_step?rounds=${numberOfRounds}`;
-    const obj = Object.fromEntries(idStrategies)
+    // Convert the map to a dictionary with integer keys
+    const idToStrategyID: Map<string, number> = new Map()
+    idStrategies.forEach((strategy, id) => {
+      const stratID = strategyToID.get(strategy)
+      if (!stratID) {
+        console.error(`Unknown strategy: ${strategy}`)
+        return
+      }
+      idToStrategyID.set(id, stratID)
+    })
+    const obj = Object.fromEntries(idToStrategyID)
     const body = JSON.stringify(obj)
     return fetch(url, {
       method: 'POST',

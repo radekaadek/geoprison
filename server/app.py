@@ -1,6 +1,6 @@
 import axelrod as axl
 import h3
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Set, Tuple
 from collections import defaultdict # Useful for accumulating scores
@@ -38,8 +38,21 @@ stringToStrat = {
     'Grudger': axl.Grudger(),
 }
 
+idToStrategy = {
+    0: "Tit-for-tat",
+    1: "Random",
+    2: "Harrington",
+    3: "Tester",
+    4: "Defector",
+    5: "Cooperator",
+    6: "Alternator",
+    7: "Suspicious tit-for-tat",
+    8: "Forgiving tit-for-tat",
+    9: "Grudger",
+}
+
 @app.post("/game_step")
-async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15, noise: float | int = 0):
+async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: float | int = 0):
     """
     Simulates one step of the spatial prisoner's dilemma.
     Each hexagon plays against its neighbors for the specified number of rounds.
@@ -58,15 +71,17 @@ async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15, noise: floa
     """
 
     if noise < 0:
-        return {"error": "Noise must be a non-negative number."}
+        return HTTPException(status_code=400, detail="Noise must be a non-negative number.")
     if noise == 0:
         noise = int(0)
     if rounds < 0:
-        return {"error": "Rounds must be a non-negative number."}
+        return HTTPException(status_code=400, detail="Rounds must be a non-negative number.")
+
+    hexToStrategy = {hexID: idToStrategy[hexToStrategyID[hexID]] for hexID in hexToStrategyID}
 
     all_hex_ids = set(hexToStrategy.keys())
     if not all_hex_ids:
-        return {"updated_strategies": {}, "scores": {}, "message": "No hexagons provided."}
+        return HTTPException(status_code=400, detail="No hexagons provided.")
 
     hexesToNumNeighbors = {}
     for hexID in all_hex_ids:
@@ -88,7 +103,6 @@ async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15, noise: floa
         except AttributeError:
              # Fallback if clone isn't available (older Axelrod?) or for simple types
              hexToPlayer[hex_id] = stringToStrat[strategy_name]
-
 
     # --- 2. Play Matches and Calculate Total Scores ---
     # Use defaultdict to easily accumulate scores
