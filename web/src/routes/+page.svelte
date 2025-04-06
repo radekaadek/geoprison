@@ -256,23 +256,17 @@
     hexagonLayer.addTo(map)
 
     const numberOfRounds = 15;
-
-    // Get game results by passing hexID to strategy to the api
-    const hexIDList: Array<[string, string]> = [];
-    idStrategies.forEach((strategy, hexID) => {
-      hexIDList.push([hexID, strategy]);
-    });
-
     const url = `${serverURL}/game?rounds=${numberOfRounds}`;
 
+
+    const obj = Object.fromEntries(idStrategies)
+    const body = JSON.stringify(obj)
     const gameResults = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(
-        idStrategies
-      ),
+      body: body,
     })
       .then(response => {
         if (!response.ok) {
