@@ -218,7 +218,14 @@
     loadLeafletModules().then(() => {
         loadMap()
     });
-
+    // Check if the server is running
+    const response = await fetch(`${serverURL}/`)
+      .catch(error => {
+        console.error('Error:', error);
+        const msg = `The server at ${serverURL} is not running. Please start the server before starting the game.`;
+        alert(msg);
+        return
+      })
   }
 
   async function startGame() {

@@ -20,6 +20,16 @@ app.add_middleware(
 # Create a list of strategies
 strategies = [axl.TitForTat(), axl.Random(), axl.Random(), axl.ForgivingTitForTat()]
 
+@app.get("/")
+async def root():
+    """
+    Returns a greeting message.
+
+    Returns:
+        A greeting message.
+    """
+    return {"message": "Hello"}
+
 @app.post("/game")
 async def game(hexToStrategy: Dict[str, str], rounds: int = 15):
     """
