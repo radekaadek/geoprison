@@ -54,19 +54,21 @@
   }
 
   const strategyId = 'strategy'
-  const polygonPopupContent = `
+  const getPolygonPopupContent = (hexID: string) => {
+    return `
     <select id='${strategyId}'>
+      <option value='select'>Select a strategy</option>
       ${[...strategy_to_color.keys()]
         .map(strategy => `<option value='${strategy}'>${strategy}</option>`)
         .join("")}
     </select>
-  `
+  `}
 
   const getPolygonPopup = (hex: string) => {
     const popup = L.popup()
     const [lat, lng] = cellToLatLng(hex);
     popup.setLatLng(L.latLng(lng, lat));
-    popup.setContent(polygonPopupContent)
+    popup.setContent(getPolygonPopupContent(hex))
     return popup
   }
 
@@ -86,6 +88,9 @@
     }
     select.addEventListener("change", (e) => {
       const strategy = select.value
+      if (strategy === 'select') {
+        return
+      }
       polygon?.setStyle({ color: strategy_to_color.get(strategy) })
       idToStrategy.set(hex, strategy)
     })
