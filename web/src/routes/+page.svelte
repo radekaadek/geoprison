@@ -28,7 +28,8 @@
     ["Harrington", "red"],
     ["Tester", "yellow"],
     ["Suspicious tit-for-tat", "purple"],
-    ["Forgiving tit-for-tat", "green"],
+    ["Forgiving tit-for-tat", "brown"],
+    ["Grudger", "orange"],
   ])
 
   type leafletType = typeof import("leaflet")
@@ -228,6 +229,19 @@
       })
   }
 
+  async function game_step(idStrategies: Map<string, string>, numberOfRounds: number = 15): Promise<any> {
+    const url = `${serverURL}/game_step?rounds=${numberOfRounds}`;
+    const obj = Object.fromEntries(idStrategies)
+    const body = JSON.stringify(obj)
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: body,
+    })
+  }
+
   async function startGame() {
     showStartGameButton = false
     gameStarted = true
@@ -238,7 +252,7 @@
     })
       
     console.log("start game")
-    const idStrategies: Map<string, string> = idToStrategy
+    let idStrategies: Map<string, string> = idToStrategy
     removeHexagons()
     const hexagons = idStrategies.keys()
     const hexArray = Array.from(hexagons)
@@ -254,30 +268,32 @@
     hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
     layerControl.addOverlay(hexagonLayer, hexagonLayerName)
     hexagonLayer.addTo(map)
-
-    const numberOfRounds = 15;
-    const url = `${serverURL}/game_step?rounds=${numberOfRounds}`;
-
-
-    const obj = Object.fromEntries(idStrategies)
-    const body = JSON.stringify(obj)
-    const gameResults = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: body,
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => data)
-      .catch(error => console.error('Error:', error));
   
-    console.log(gameResults)
+    const numberOfSteps = 15;
+    for (let i = 0; i < numberOfSteps; i++) {
+      const numberOfRounds = 30
+      const gameResults = await game_step(idStrategies, numberOfRounds)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => data)
+        .catch(error => console.error('Error:', error));
+      const result_strategies = gameResults.updated_strategies
+      const result_strategies_map: Map<string, string> = new Map(Object.entries(result_strategies))
+      idStrategies = result_strategies_map
+
+      console.log(idStrategies)
+      // update the colors of the polygons
+      idToPolygon.forEach((polygon, hexID) => {
+        const color = strategy_to_color.get(idStrategies.get(hexID) as string)
+        polygon.setStyle({ color: color })
+      })
+      // wait for a second before starting the next step
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
 
   }
   

@@ -36,7 +36,6 @@ stringToStrat = {
     'Suspicious tit-for-tat': axl.SuspiciousTitForTat(),
     'Forgiving tit-for-tat': axl.ForgivingTitForTat(),
     'Grudger': axl.Grudger(),
-    # Add more strategies as needed
 }
 
 @app.post("/game_step") # Renamed for clarity as it performs one step
@@ -56,24 +55,24 @@ async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15):
         A dictionary containing the updated strategy map for the next step
         and the total scores achieved by each hexagon in this step.
     """
-    print(f"Received request: {rounds=}, strategies for {len(hexToStrategy)} hexes")
 
     all_hex_ids = set(hexToStrategy.keys())
     if not all_hex_ids:
         return {"updated_strategies": {}, "scores": {}, "message": "No hexagons provided."}
 
+    hexesToNumNeighbors = {}
+    for hexID in all_hex_ids:
+        neighbors = get_valid_neighbors(hexID, all_hex_ids)
+        hexesToNumNeighbors[hexID] = len(neighbors)
+
     hexToPlayer = {}
     for hex_id, strategy_name in hexToStrategy.items():
         if strategy_name not in stringToStrat:
-            # Handle unknown strategy name
             print(f"Error: Unknown strategy '{strategy_name}' for hex {hex_id}")
-            # Option 1: Skip this hex (might cause issues if neighbors expect it)
-            # Option 2: Assign a default strategy
-            # Option 3: Return an error response
-            return {"error": f"Unknown strategy name: {strategy_name}"} # Error response
-        # Use clone() to ensure each player has an independent state,
-        # especially important if running multiple steps or complex strategies.
+            return {"error": f"Unknown strategy name: {strategy_name}"}
         try:
+            # Use clone() to ensure each player has an independent state,
+            # especially important if running multiple steps or complex strategies.
              hexToPlayer[hex_id] = stringToStrat[strategy_name].clone()
         except AttributeError:
              # Fallback if clone isn't available (older Axelrod?) or for simple types
@@ -97,6 +96,9 @@ async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15):
             if pair in played_pairs:
                 continue # Already processed this interaction
 
+            if len(pair) != 2:
+                print(f"Invalid pair: {pair}")
+                continue
             played_pairs.add(pair)
             neighbor_player = hexToPlayer[neighbor_hex]
 
@@ -104,12 +106,22 @@ async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15):
             # Ensure players are reset if necessary (clone usually handles this)
             # center_player.reset() # Generally not needed with clone()
             # neighbor_player.reset()
-            match = axl.Match(players=(center_player, neighbor_player), turns=rounds)
-            match.play()
+            game = axl.Match(players=(center_player, neighbor_player), turns=rounds)
+            game.play()
 
             # Get scores - assumes center_player is player 0, neighbor_player is player 1
             # Verify this assumption based on how players were passed to axl.Match
-            score_center, score_neighbor = match.final_score()
+            res = game.final_score()
+            if res is None:
+                print(f"Game had no result: {game}")
+                continue
+            score_center, score_neighbor = res
+
+            # get the number of neighbors for the center and neighbor
+            # center_num_neighbors = hexesToNumNeighbors[center_hex]
+            # neighbor_num_neighbors = hexesToNumNeighbors[neighbor_hex]
+            # score_center *= center_num_neighbors
+            # score_neighbor *= neighbor_num_neighbors
 
             # Add scores to the respective hexagons' totals
             hexToTotalScore[center_hex] += score_center
@@ -125,8 +137,9 @@ async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15):
         if not neighbors:
             continue # No neighbors to compare with, strategy remains unchanged
 
-        max_neighbor_score = -float('inf') # Initialize very low
-        best_neighbor_strategy_name = None # Strategy name of the best neighbor
+        # set max and best to its current value
+        max_neighbor_score = hexToTotalScore[center_hex]
+        best_neighbor_strategy_name = hexToStrategy[center_hex]
 
         # Find the highest score among neighbors
         for neighbor_hex in neighbors:
@@ -155,7 +168,5 @@ async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15):
         # Convert defaultdict back to regular dict for JSON compatibility
         "scores": hexToTotalScore
     }
-    print("Game step processed.")
-    print(f"{response=}") # Can be verbose, uncomment for debugging
     return response
 
