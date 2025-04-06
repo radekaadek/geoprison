@@ -38,23 +38,31 @@ stringToStrat = {
     'Grudger': axl.Grudger(),
 }
 
-@app.post("/game_step") # Renamed for clarity as it performs one step
-async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15):
+@app.post("/game_step")
+async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15, noise: float | int = 0):
     """
     Simulates one step of the spatial prisoner's dilemma.
     Each hexagon plays against its neighbors for the specified number of rounds.
     Scores are calculated, and hexagons adopt the strategy of their
     highest-scoring neighbor if that neighbor scored strictly higher.
 
-    Args:
+    Args:\n
         hexToStrategy: A dictionary where keys are H3 hex IDs (strings)
                        and values are strategy names (strings).
         rounds: The number of rounds for each pairwise prisoner's dilemma match.
+        noise: The amount of noise to add to the scores of each match.
 
     Returns:
         A dictionary containing the updated strategy map for the next step
         and the total scores achieved by each hexagon in this step.
     """
+
+    if noise < 0:
+        return {"error": "Noise must be a non-negative number."}
+    if noise == 0:
+        noise = int(0)
+    if rounds < 0:
+        return {"error": "Rounds must be a non-negative number."}
 
     all_hex_ids = set(hexToStrategy.keys())
     if not all_hex_ids:
@@ -62,7 +70,10 @@ async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15):
 
     hexesToNumNeighbors = {}
     for hexID in all_hex_ids:
-        neighbors = get_valid_neighbors(hexID, all_hex_ids)
+        try:
+            neighbors = get_valid_neighbors(hexID, all_hex_ids)
+        except ValueError as _:
+            return {"error": "Could not find valid neighbors for hex " + hexID}
         hexesToNumNeighbors[hexID] = len(neighbors)
 
     hexToPlayer = {}
@@ -106,7 +117,7 @@ async def game_step(hexToStrategy: Dict[str, str], rounds: int = 15):
             # Ensure players are reset if necessary (clone usually handles this)
             # center_player.reset() # Generally not needed with clone()
             # neighbor_player.reset()
-            game = axl.Match(players=(center_player, neighbor_player), turns=rounds)
+            game = axl.Match(players=(center_player, neighbor_player), turns=rounds, noise=noise)
             game.play()
 
             # Get scores - assumes center_player is player 0, neighbor_player is player 1

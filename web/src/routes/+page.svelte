@@ -21,12 +21,12 @@
   const polygonLayerName = "Polygon"
   const hexagonLayerName = "Hexagons"
 
-  let defaultStrategy = "Tit-for-tat"
+  let defaultStrategy = "Tester"
   const strategy_to_color: Map<string, string> = new Map([
+    ["Tester", "yellow"],
     ["Tit-for-tat", "blue"],
     ["Random", "black"],
     ["Harrington", "red"],
-    ["Tester", "yellow"],
     ["Suspicious tit-for-tat", "purple"],
     ["Forgiving tit-for-tat", "brown"],
     ["Grudger", "orange"],
@@ -63,6 +63,15 @@
         .map(strategy => `<option value='${strategy}'>${strategy}</option>`)
         .join("")}
     </select>
+  `}
+
+  const getPolygonScorePopupContent = (hexID: string, score: number) => {
+    return `
+    <div id='${hexID}Score'>
+      <p>Strategy: ${idToStrategy.get(hexID)}</p>
+      <p>Score: ${score}</p>
+      <p>Hex ID: ${hexID}</p>
+    </div>
   `}
 
   const getPolygonPopup = (hex: string) => {
@@ -251,7 +260,6 @@
       drawRectangle: false,
     })
       
-    console.log("start game")
     let idStrategies: Map<string, string> = idToStrategy
     removeHexagons()
     const hexagons = idStrategies.keys()
@@ -263,6 +271,7 @@
         opacity: 0.5,
       })
     })
+    idToStrategy = idStrategies
     const polyArray = Array.from(polygons)
     idToPolygon = new Map(hexArray.map((hex, i) => [hex, polyArray[i]]))
     hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
@@ -272,7 +281,7 @@
     const numberOfSteps = 15;
     for (let i = 0; i < numberOfSteps; i++) {
       const numberOfRounds = 30
-      const gameResults = await game_step(idStrategies, numberOfRounds)
+      const gameResults = await game_step(idToStrategy, numberOfRounds)
         .then(response => {
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -283,13 +292,22 @@
         .catch(error => console.error('Error:', error));
       const result_strategies = gameResults.updated_strategies
       const result_strategies_map: Map<string, string> = new Map(Object.entries(result_strategies))
-      idStrategies = result_strategies_map
+      idToStrategy = result_strategies_map
+      const result_scores = gameResults.scores
+      const result_scores_map: Map<string, number> = new Map(Object.entries(result_scores))
 
-      console.log(idStrategies)
       // update the colors of the polygons
       idToPolygon.forEach((polygon, hexID) => {
-        const color = strategy_to_color.get(idStrategies.get(hexID) as string)
+        const color = strategy_to_color.get(idToStrategy.get(hexID) as string)
         polygon.setStyle({ color: color })
+        // add a popup with the strategy name and score
+        const score = result_scores_map.get(hexID)
+        if (score) {
+          // clear the previous popup
+          polygon.unbindPopup()
+          const popup = getPolygonScorePopupContent(hexID, score)
+          polygon.bindPopup(popup)
+        }
       })
       // wait for a second before starting the next step
       await new Promise(resolve => setTimeout(resolve, 500));
