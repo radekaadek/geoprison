@@ -238,6 +238,13 @@
     });
     // Check if the server is running
     const response = await fetch(`${serverURL}/`)
+      .then(response => {
+        if (!response.ok) {
+          const msg = `The server at ${serverURL} is not running. Please start the server before starting the game.`;
+          alert(msg);
+        }
+        return response.json();
+        })
       .catch(error => {
         console.error('Error:', error);
         const msg = `The server at ${serverURL} is not running. Please start the server before starting the game.`;
@@ -309,7 +316,11 @@
           return response.json();
         })
         .then(data => data)
-        .catch(error => console.error('Error:', error));
+        .catch(error => {
+          console.error('Error:', error);
+          alert(`Could not get game results from the server.\nPlease check that the server is running and try again.`)
+          return
+        })
       const result_strategies = gameResults.updated_strategies
       const result_strategies_map: Map<string, string> = new Map(Object.entries(result_strategies))
       idToStrategy = result_strategies_map

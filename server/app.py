@@ -51,6 +51,10 @@ idToStrategy = {
     9: "Grudger",
 }
 
+@app.get("/")
+async def root():
+    return {"message": "Hello"}
+
 @app.post("/game_step")
 async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: float | int = 0):
     """
