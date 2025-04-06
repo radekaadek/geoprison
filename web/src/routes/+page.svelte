@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { cellToBoundary, cellToLatLng, latLngToCell, polygonToCells } from 'h3-js';
+  import Slider from "$lib/Slider.svelte"
 
   let serverURL = "http://localhost:8000"
 
@@ -357,18 +358,8 @@
         {/each}
       </select>
     </div>
-    <div class="slider">
-      <div class="sliderValue">Noise: {noise}</div>
-      <input type="range" min="0" max="1" step="0.1" bind:value={noise}
-         on:mouseenter={() => map.dragging.disable()} 
-         on:mouseleave={() => map.dragging.enable()}>
-    </div>
-    <div class="slider">
-      <div class="sliderValue">Hex Level: {hexLevel}</div>
-      <input type="range" min="0" max="15" step="1" bind:value={hexLevel}
-         on:mouseenter={() => map.dragging.disable()} 
-         on:mouseleave={() => map.dragging.enable()}>
-    </div>
+    <Slider label="Noise" min={0} max={1} step={0.1} bind:value={noise} {map} />
+    <Slider label="Hex Level" min={0} max={15} step={1} bind:value={hexLevel} {map} />
   </div>
 {/if}
 
@@ -428,13 +419,6 @@
     color: blue;
   }
 
-  .slider {
-    text-align: center;
-    justify-content: center;
-    background-color: #add8e6;
-    border: 1px solid #6abf69; /* Slightly darker green for contrast */
-  }
-
   @media (max-width: 480px) {
       #controls {
           font-size: 1.1rem;
@@ -442,16 +426,7 @@
       }
   }
 
-  input[type="range"] {
-    position: relative;
-    z-index: 1000;
-    pointer-events: auto;
-  }
   @media (max-width: 480px) {
-    input[type="range"] {
-      width: 90%;
-      font-size: 1.1rem;
-    }
     #controls {
       width: 45%;
     }
