@@ -3,6 +3,8 @@
   import { browser } from '$app/environment';
   import { cellToBoundary, cellToLatLng, latLngToCell, polygonToCells } from 'h3-js';
 
+  let serverURL = "http://localhost:8000"
+
   let selectedPolygonGeoJSON: any = null
   let layerControl: L.Control.Layers
   let map: L.Map
@@ -224,7 +226,7 @@
     })
       
     console.log("start game")
-    const idStrategies = idToStrategy
+    const idStrategies: Map<string, string> = idToStrategy
     removeHexagons()
     const hexagons = idStrategies.keys()
     const hexArray = Array.from(hexagons)
@@ -240,6 +242,37 @@
     hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
     layerControl.addOverlay(hexagonLayer, hexagonLayerName)
     hexagonLayer.addTo(map)
+
+    const numberOfRounds = 15;
+
+    // Get game results by passing hexID to strategy to the api
+    const hexIDList: Array<[string, string]> = [];
+    idStrategies.forEach((strategy, hexID) => {
+      hexIDList.push([hexID, strategy]);
+    });
+
+    const url = `${serverURL}/game?rounds=${numberOfRounds}`;
+
+    const gameResults = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(
+        idStrategies
+      ),
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => data)
+      .catch(error => console.error('Error:', error));
+  
+    console.log(gameResults)
+
   }
   
   onMount(async () => {
