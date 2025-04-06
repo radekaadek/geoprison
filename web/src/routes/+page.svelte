@@ -17,6 +17,7 @@
   let hexLevel = zoomToHexSize(startingMapZoom)
   let gameStarted = false
   let L: leafletType
+  let noise = 0
 
   const polygonLayerName = "Polygon"
   const hexagonLayerName = "Hexagons"
@@ -31,18 +32,18 @@
     ["Forgiving tit-for-tat", "brown"],
     ["Grudger", "orange"],
   ])
-  const strategyToID: Map<string, number> = new Map([
-    ["Tit-for-tat", 0],
-    ["Random", 1],
-    ["Harrington", 2],
-    ["Tester", 3],
-    ["Defector", 4],
-    ["Cooperator", 5],
-    ["Alternator", 6],
-    ["Suspicious tit-for-tat", 7],
-    ["Forgiving tit-for-tat", 8],
-    ["Grudger", 9],
-  ])
+  const strategyToID: Map<string, number> = new Map(Object.entries({
+    "Tit-for-tat": 0,
+    "Random": 1,
+    "Harrington": 2,
+    "Tester": 3,
+    "Defector": 4,
+    "Cooperator": 5,
+    "Alternator": 6,
+    "Suspicious tit-for-tat": 7,
+    "Forgiving tit-for-tat": 8,
+    "Grudger": 9,
+  }))
 
 
   type leafletType = typeof import("leaflet")
@@ -193,13 +194,6 @@
     });
 
     const leafletContainer = document.querySelector(".leaflet-top.leaflet-left");
-    const hexLevelDiv = document.getElementById("hexLevel");
-
-    if (leafletContainer && hexLevelDiv) {
-      leafletContainer.appendChild(hexLevelDiv);
-    } else {
-      console.error("Could not find leaflet container or hexLevelDiv");
-    }
 
     map.on("zoomend", (e) => {
       hexLevel = zoomToHexSize(map.getZoom())
@@ -252,13 +246,15 @@
   }
 
   async function game_step(idStrategies: Map<string, string>, numberOfRounds: number = 15): Promise<any> {
-    const url = `${serverURL}/game_step?rounds=${numberOfRounds}`;
+    console.log(noise)
+    const url = `${serverURL}/game_step?rounds=${numberOfRounds}&noise=${noise}`;
     // Convert the map to a dictionary with integer keys
     const idToStrategyID: Map<string, number> = new Map()
     idStrategies.forEach((strategy, id) => {
       const stratID = strategyToID.get(strategy)
-      if (!stratID) {
+      if (stratID === undefined) {
         console.error(`Unknown strategy: ${strategy}`)
+        console.error(`Strategies: ${[...strategyToID.keys()]}`)
         return
       }
       idToStrategyID.set(id, stratID)
@@ -352,19 +348,27 @@
 
 
 {#if !gameStarted}
-  <div id="hexLevel">
-    <input type="range" min="0" max="15" step="1" bind:value={hexLevel}
-       on:mouseenter={() => map.dragging.disable()} 
-       on:mouseleave={() => map.dragging.enable()}>
-  </div>
-{/if}
-{#if !gameStarted}
-  <div id="defaultStrategy">
-    <select bind:value={defaultStrategy}>
-      {#each [...strategy_to_color.keys()] as strategy}
-        <option value={strategy}>{strategy}</option>
-      {/each}
-    </select>
+  <div id="controls">
+    <div id="defaultStrategy">
+      <div id="dsString">Default Strategy:</div>
+      <select id="strategySelect" bind:value={defaultStrategy}>
+        {#each [...strategy_to_color.keys()] as strategy}
+          <option value={strategy}>{strategy}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="slider">
+      <div class="sliderValue">Noise: {noise}</div>
+      <input type="range" min="0" max="1" step="0.1" bind:value={noise}
+         on:mouseenter={() => map.dragging.disable()} 
+         on:mouseleave={() => map.dragging.enable()}>
+    </div>
+    <div class="slider">
+      <div class="sliderValue">Hex Level: {hexLevel}</div>
+      <input type="range" min="0" max="15" step="1" bind:value={hexLevel}
+         on:mouseenter={() => map.dragging.disable()} 
+         on:mouseleave={() => map.dragging.enable()}>
+    </div>
   </div>
 {/if}
 
@@ -399,35 +403,40 @@
     }
   }
 
-  #defaultStrategy {
+  #controls {
     position: absolute;
     left: 0%;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 75%;
+    /*transform: translateY(-50%);*/
     font-size: 1rem; /* Large text */
     padding: 0.2rem;
     z-index: 1000;
+    margin: 0.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+    justify-content: center;
+  }
+
+  #defaultStrategy {
     background-color: #add8e6;
     border: 1px solid #6abf69; /* Slightly darker green for contrast */
   }
 
-  /* Responsive Design */
-  @media (max-width: 768px) {
-      #defaultStrategy {
-          left: 50%;
-          top: auto;
-          bottom: 10%;
-          transform: translateX(-50%);
-          font-size: 1.2rem; /* Larger font for mobile readability */
-          width: 90%; /* Ensures it fits within smaller screens */
-          text-align: center;
-          padding: 0.6rem;
-      }
+  #dsString {
+    color: blue;
+  }
+
+  .slider {
+    text-align: center;
+    justify-content: center;
+    background-color: #add8e6;
+    border: 1px solid #6abf69; /* Slightly darker green for contrast */
   }
 
   @media (max-width: 480px) {
-      #defaultStrategy {
-          width: 95%;
+      #controls {
           font-size: 1.1rem;
           padding: 0.8rem;
       }
@@ -437,6 +446,18 @@
     position: relative;
     z-index: 1000;
     pointer-events: auto;
+  }
+  @media (max-width: 480px) {
+    input[type="range"] {
+      width: 90%;
+      font-size: 1.1rem;
+    }
+    #controls {
+      width: 45%;
+    }
+    #strategySelect {
+      width: 90%;
+    }
   }
 
 </style>
