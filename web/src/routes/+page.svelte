@@ -256,7 +256,7 @@
     hexagonLayer.addTo(map)
 
     const numberOfRounds = 15;
-    const url = `${serverURL}/game?rounds=${numberOfRounds}`;
+    const url = `${serverURL}/game_step?rounds=${numberOfRounds}`;
 
 
     const obj = Object.fromEntries(idStrategies)
