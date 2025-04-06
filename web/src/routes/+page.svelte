@@ -226,13 +226,14 @@
     })
       
     console.log("start game")
+    const idStrategies: Map<string, string> = idToStrategy
     removeHexagons()
-    const hexagons = idToStrategy.keys()
+    const hexagons = idStrategies.keys()
     const hexArray = Array.from(hexagons)
     const polygons = hexArray.map((hID) => {
       const boundary = cellToBoundary(hID, true)
       return L.polygon(boundary, {
-        color: strategy_to_color.get(idToStrategy.get(hID) as string),
+        color: strategy_to_color.get(idStrategies.get(hID) as string),
         opacity: 0.5,
       })
     })
@@ -244,6 +245,12 @@
 
     const numberOfRounds = 15;
 
+    // Get game results by passing hexID to strategy to the api
+    const hexIDList: Array<[string, string]> = [];
+    idStrategies.forEach((strategy, hexID) => {
+      hexIDList.push([hexID, strategy]);
+    });
+
     const url = `${serverURL}/game?rounds=${numberOfRounds}`;
 
     const gameResults = await fetch(url, {
@@ -252,7 +259,7 @@
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(
-        idToStrategy
+        idStrategies
       ),
     })
       .then(response => {

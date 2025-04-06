@@ -32,4 +32,6 @@ async def game(hexToStrategy: Dict[str, str], rounds: int = 15):
     Returns:
         A greeting message (or game results when implemented).
     """
-    return {"message": "Game processed", "rounds": rounds, "strategies": hexToStrategy}
+    response = {"message": "Game processed", "rounds": rounds, "strategies": hexToStrategy}
+    print(f"Received request, {response=}")
+    return response
