@@ -21,9 +21,24 @@
   let noise = 0
   let numberOfRounds = 15
   let numberOfSteps = 15
+  let currentStep = 0
 
   const polygonLayerName = "Polygon"
   const hexagonLayerName = "Hexagons"
+
+  $: handleStepChange(currentStep)
+
+  const handleStepChange = (step: number) => {
+    if (step > 0 && step < gameStates.length) {
+      updateHexagons(gameStates[currentStep], idToPolygon)
+    }
+  }
+
+  type stratAndScore = {
+    strategy: string,
+    score: number
+  }
+  let gameStates: Array<Map<string, stratAndScore>> = []
 
   let defaultStrategy = "Tester"
   const strategy_to_color: Map<string, string> = new Map([
@@ -196,8 +211,6 @@
       cutPolygon: false
     });
 
-    const leafletContainer = document.querySelector(".leaflet-top.leaflet-left");
-
     map.on("zoomend", (e) => {
       hexLevel = zoomToHexSize(map.getZoom())
     });
@@ -256,7 +269,6 @@
   }
 
   async function game_step(idStrategies: Map<string, string>, numberOfRounds: number = 15): Promise<any> {
-    console.log(noise)
     const url = `${serverURL}/game_step?rounds=${numberOfRounds}&noise=${noise}`;
     // Convert the map to a dictionary with integer keys
     const idToStrategyID: Map<string, number> = new Map()
@@ -281,6 +293,7 @@
   }
 
   async function startGame() {
+    currentStep = 0
     showStartGameButton = false
     gameStarted = true
     map.closePopup();
@@ -322,28 +335,39 @@
           return
         })
       const result_strategies = gameResults.updated_strategies
-      const result_strategies_map: Map<string, string> = new Map(Object.entries(result_strategies))
-      idToStrategy = result_strategies_map
       const result_scores = gameResults.scores
-      const result_scores_map: Map<string, number> = new Map(Object.entries(result_scores))
-
-      // update the colors of the polygons
-      idToPolygon.forEach((polygon, hexID) => {
-        const color = strategy_to_color.get(idToStrategy.get(hexID) as string)
-        polygon.setStyle({ color: color })
-        // add a popup with the strategy name and score
-        const score = result_scores_map.get(hexID)
-        if (score) {
-          // clear the previous popup
-          polygon.unbindPopup()
-          const popup = getPolygonScorePopupContent(hexID, score)
-          polygon.bindPopup(popup)
-        }
+      const result_strategies_map: Map<string, string> = new Map(Object.entries(result_strategies))
+      const currentState: Map<string, stratAndScore> = new Map()
+      result_strategies_map.forEach((strategy, hexID) => {
+        currentState.set(hexID, {
+          strategy: strategy,
+          score: result_scores[hexID]
+        })
       })
-      // wait for a second before starting the next step
-      await new Promise(resolve => setTimeout(resolve, 500));
+      gameStates.push(currentState)
+      idToStrategy = result_strategies_map
+
+      currentStep = i
+      updateHexagons(currentState, idToPolygon)
+
     }
 
+  }
+
+  const updateHexagons = (hexToStratNScore: Map<string, stratAndScore>, idToPolygon: Map<string, L.Polygon>) => {
+    idToPolygon.forEach((polygon, hexID) => {
+      const queryResult = hexToStratNScore.get(hexID) as stratAndScore
+      const color = strategy_to_color.get(queryResult.strategy)
+      polygon.setStyle({ color: color })
+      // add a popup with the strategy name and score
+      const score = queryResult.score
+      if (score) {
+        // clear the previous popup
+        polygon.unbindPopup()
+        const popup = getPolygonScorePopupContent(hexID, score)
+        polygon.bindPopup(popup)
+      }
+    })
   }
   
   onMount(async () => {
@@ -355,7 +379,7 @@
 <div id="map">
 </div>
 {#if showStartGameButton}
-  <button on:click={() => startGame()}>Start Game</button>
+  <button class="centerTop" on:click={() => startGame()}>Start Game</button>
 {/if}
 
 
@@ -374,6 +398,10 @@
     <Slider label="Rounds" min={1} max={50} step={1} bind:value={numberOfRounds} {map} />
     <Slider label="Number of Steps to Generate" min={1} max={50} step={1} bind:value={numberOfSteps} {map} />
   </div>
+{:else}
+  <div id="controls">
+    <Slider label="Current Step" min={0} max={numberOfSteps} step={1} bind:value={currentStep} {map} />
+  </div>
 {/if}
 
 
@@ -383,6 +411,15 @@
     width: 100vw;
   }
 
+  .centerTop {
+    cursor: pointer;
+    position: absolute;
+    top: 20px; /* Move it to the top */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999; /* Ensure it's above Leaflet */
+  }
+
   button {
     background-color: red;
     color: white;
@@ -390,12 +427,6 @@
     padding: 12px 24px; /* Adjusted padding */
     border: none;
     border-radius: 8px;
-    cursor: pointer;
-    position: absolute;
-    top: 20px; /* Move it to the top */
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9999; /* Ensure it's above Leaflet */
     white-space: nowrap; /* Prevent text wrapping */
   }
 
