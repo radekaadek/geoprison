@@ -19,6 +19,8 @@
   let gameStarted = false
   let L: leafletType
   let noise = 0
+  let numberOfRounds = 15
+  let numberOfSteps = 15
 
   const polygonLayerName = "Polygon"
   const hexagonLayerName = "Hexagons"
@@ -305,9 +307,7 @@
     layerControl.addOverlay(hexagonLayer, hexagonLayerName)
     hexagonLayer.addTo(map)
   
-    const numberOfSteps = 15;
     for (let i = 0; i < numberOfSteps; i++) {
-      const numberOfRounds = 30
       const gameResults = await game_step(idToStrategy, numberOfRounds)
         .then(response => {
           if (!response.ok) {
@@ -371,6 +371,8 @@
     </div>
     <Slider label="Noise" min={0} max={1} step={0.1} bind:value={noise} {map} />
     <Slider label="Hex Level" min={0} max={15} step={1} bind:value={hexLevel} {map} />
+    <Slider label="Rounds" min={1} max={50} step={1} bind:value={numberOfRounds} {map} />
+    <Slider label="Number of Steps to Generate" min={1} max={50} step={1} bind:value={numberOfSteps} {map} />
   </div>
 {/if}
 
@@ -408,7 +410,7 @@
   #controls {
     position: absolute;
     left: 0%;
-    top: 75%;
+    top: 50%;
     /*transform: translateY(-50%);*/
     font-size: 1rem; /* Large text */
     padding: 0.2rem;

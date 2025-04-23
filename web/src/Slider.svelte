@@ -43,6 +43,12 @@
     display: flex;
     flex-direction: column;
   }
+  .sliderValue {
+    padding-right: 0.5rem;
+    padding-left: 0.5rem;
+    padding-top: 0.3rem;
+    padding-bottom: 0.3rem;
+  }
 
   .sliderField {
     text-align: center;
