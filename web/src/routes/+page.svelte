@@ -97,10 +97,10 @@
     </select>
   `}
 
-  const getPolygonScorePopupContent = (hexID: string, score: number) => {
+  const getPolygonScorePopupContent = (hexID: string, score: number, strategy: string) => {
     return `
     <div id='${hexID}Score'>
-      <p>Strategy: ${idToStrategy.get(hexID)}</p>
+      <p>Strategy: ${strategy}</p>
       <p>Score: ${score}</p>
       <p>Hex ID: ${hexID}</p>
     </div>
@@ -357,14 +357,15 @@
   const updateHexagons = (hexToStratNScore: Map<string, stratAndScore>, idToPolygon: Map<string, L.Polygon>) => {
     idToPolygon.forEach((polygon, hexID) => {
       const queryResult = hexToStratNScore.get(hexID) as stratAndScore
-      const color = strategy_to_color.get(queryResult.strategy)
+      const strat = queryResult.strategy
+      const color = strategy_to_color.get(strat)
       polygon.setStyle({ color: color })
       // add a popup with the strategy name and score
       const score = queryResult.score
       if (score) {
         // clear the previous popup
         polygon.unbindPopup()
-        const popup = getPolygonScorePopupContent(hexID, score)
+        const popup = getPolygonScorePopupContent(hexID, score, strat)
         polygon.bindPopup(popup)
       }
     })
