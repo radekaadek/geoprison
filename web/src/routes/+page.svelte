@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
   import { cellToBoundary, cellToLatLng, latLngToCell, polygonToCells } from 'h3-js';
-  import Slider from "$lib/Slider.svelte"
+  import Slider from "../Slider.svelte";
 
   let serverURL = "http://localhost:8000"
 
