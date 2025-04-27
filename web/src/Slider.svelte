@@ -65,7 +65,7 @@
   @media (max-width: 480px) {
     input[type="range"] {
       width: 90%;
-      font-size: 1.1rem;
+      font-size: 1rem;
     }
   }
 

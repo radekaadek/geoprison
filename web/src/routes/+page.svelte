@@ -30,7 +30,7 @@
 
   const handleStepChange = (step: number) => {
     if (step > 0 && step < gameStates.length) {
-      updateHexagons(gameStates[currentStep], idToPolygon)
+      updateGameHexagons(gameStates[currentStep], idToPolygon)
     }
   }
 
@@ -49,6 +49,9 @@
     ["Suspicious tit-for-tat", "purple"],
     ["Forgiving tit-for-tat", "brown"],
     ["Grudger", "orange"],
+    ["Cooperator", "green"],
+    ["Defector", "pink"],
+    ["Alternator", "gray"],
   ])
   const strategyToID: Map<string, number> = new Map(Object.entries({
     "Tit-for-tat": 0,
@@ -62,7 +65,6 @@
     "Forgiving tit-for-tat": 8,
     "Grudger": 9,
   }))
-
 
   type leafletType = typeof import("leaflet")
 
@@ -86,10 +88,10 @@
     idToStrategy = new Map()
   }
 
-  const strategyId = 'strategy'
+  const strategyDivId = 'strategy'
   const getPolygonPopupContent = (hexID: string) => {
     return `
-    <select id='${strategyId}'>
+    <select id='${strategyDivId}'>
       <option value='select'>Select a strategy</option>
       ${[...strategy_to_color.keys()]
         .map(strategy => `<option value='${strategy}'>${strategy}</option>`)
@@ -123,7 +125,7 @@
     const polygon = idToPolygon.get(hex)
     const popup = getPolygonPopup(hex)
     popup.openOn(map)
-    const select = document.getElementById(strategyId) as HTMLSelectElement | null
+    const select = document.getElementById(strategyDivId) as HTMLSelectElement | null
     if (!select) {
       alert("Something went wrong, could not find select element")
       return
@@ -348,13 +350,14 @@
       idToStrategy = result_strategies_map
 
       currentStep = i
-      updateHexagons(currentState, idToPolygon)
+      updateGameHexagons(currentState, idToPolygon)
 
     }
 
   }
 
-  const updateHexagons = (hexToStratNScore: Map<string, stratAndScore>, idToPolygon: Map<string, L.Polygon>) => {
+  // Update hexagons with the current game state
+  const updateGameHexagons = (hexToStratNScore: Map<string, stratAndScore>, idToPolygon: Map<string, L.Polygon>) => {
     idToPolygon.forEach((polygon, hexID) => {
       const queryResult = hexToStratNScore.get(hexID) as stratAndScore
       const strat = queryResult.strategy
@@ -369,6 +372,34 @@
         polygon.bindPopup(popup)
       }
     })
+  }
+
+  const randomizeHexStrategies = () => {
+    const hexagons = idToPolygon.keys()
+    const hexArray = Array.from(hexagons)
+    const randomizedStrategies = new Map()
+    const stratList: string[] = []
+    // find the element with the id "strategiesToRandomize"
+    const strategiesParentDiv: any = document.getElementById("strategiesToRandomize")
+    // get the value of the checkboxes
+    const checkboxes = strategiesParentDiv.querySelectorAll("input[type='checkbox']") as NodeListOf<HTMLInputElement>
+    checkboxes.forEach((checkbox) => {
+      if (checkbox.checked) {
+        stratList.push(checkbox.id)
+      }
+    })
+    hexArray.forEach((hID) => {
+      const randomStrategy = stratList[Math.floor(Math.random() * stratList.length)]
+      randomizedStrategies.set(hID, randomStrategy)
+      const color = strategy_to_color.get(randomStrategy)
+      const polygon = idToPolygon.get(hID)
+      if (!polygon) {
+        console.error(`Polygon for hexagon ${hID} not found`)
+        return
+      }
+      polygon.setStyle({ color: color })
+    })
+    idToStrategy = randomizedStrategies
   }
   
   onMount(async () => {
@@ -394,10 +425,22 @@
         {/each}
       </select>
     </div>
+     <div class="dropdown">
+      <button class="dropbtn">Strategies to randomize</button>
+      <div id="strategiesToRandomize" class="dropdown-content">
+        {#each [...strategy_to_color.keys()] as strategy}
+          <div class="strategyCheckbox">
+            <input type="checkbox" id={strategy}/>
+            <label for={strategy}>{strategy}</label>
+          </div>
+        {/each}
+      </div>
+    </div> 
+    <button on:click={() => randomizeHexStrategies()}>Randomize Strategies</button>
     <Slider label="Noise" min={0} max={1} step={0.1} bind:value={noise} {map} />
     <Slider label="Hex Level" min={0} max={15} step={1} bind:value={hexLevel} {map} />
     <Slider label="Rounds" min={1} max={50} step={1} bind:value={numberOfRounds} {map} />
-    <Slider label="Number of Steps to Generate" min={1} max={50} step={1} bind:value={numberOfSteps} {map} />
+    <Slider label="Number of Steps to Generate" min={1} max={200} step={1} bind:value={numberOfSteps} {map} />
   </div>
 {:else}
   <div id="controls">
@@ -412,13 +455,35 @@
     width: 100vw;
   }
 
+  /* The container <div> - needed to position the dropdown content */
+  .dropdown {
+    position: relative;
+    display: inline-block;
+  }
+
+  /* Dropdown Content (Hidden by Default) */
+  .dropdown-content {
+    display: none;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #f1f1f1;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 1001;
+  }
+
+  /* Show the dropdown menu on hover */
+  .dropdown:hover .dropdown-content {display: block;}
+
+  /* Change the background color of the dropdown button when the dropdown content is shown */
+  .dropdown:hover .dropbtn {background-color: #3e8e41;} 
   .centerTop {
     cursor: pointer;
     position: absolute;
     top: 20px; /* Move it to the top */
     left: 50%;
     transform: translateX(-50%);
-    z-index: 9999; /* Ensure it's above Leaflet */
+    z-index: 1000; /* Ensure it's above Leaflet */
   }
 
   button {
@@ -442,7 +507,7 @@
   #controls {
     position: absolute;
     left: 0%;
-    top: 50%;
+    top: 30%;
     /*transform: translateY(-50%);*/
     font-size: 1rem; /* Large text */
     padding: 0.2rem;
