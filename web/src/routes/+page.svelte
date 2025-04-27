@@ -23,6 +23,12 @@
   let numberOfSteps = 15
   let currentStep = 0
 
+  // Axelrod payoff matrix
+  let r = 3
+  let s = 0
+  let t = 5
+  let p = 1
+
   const polygonLayerName = "Polygon"
   const hexagonLayerName = "Hexagons"
 
@@ -270,8 +276,8 @@
       })
   }
 
-  async function game_step(idStrategies: Map<string, string>, numberOfRounds: number = 15): Promise<any> {
-    const url = `${serverURL}/game_step?rounds=${numberOfRounds}&noise=${noise}`;
+  async function game_step(idStrategies: Map<string, string>, numberOfRounds: number = 15, r: number = 4, s: number = 0, t: number = 5, p: number = 1) {
+    const url = `${serverURL}/game_step?rounds=${numberOfRounds}&noise=${noise}&r=${r}&s=${s}&t=${t}&p=${p}`;
     // Convert the map to a dictionary with integer keys
     const idToStrategyID: Map<string, number> = new Map()
     idStrategies.forEach((strategy, id) => {
@@ -323,7 +329,7 @@
     hexagonLayer.addTo(map)
   
     for (let i = 0; i < numberOfSteps; i++) {
-      const gameResults = await game_step(idToStrategy, numberOfRounds)
+      const gameResults = await game_step(idToStrategy, numberOfRounds, r, s, t, p)
         .then(response => {
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -417,6 +423,38 @@
 
 {#if !gameStarted}
   <div id="controls">
+    <table>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="cell-content">
+                            <span>CC</span>
+                            <input type="number" id="payout_cc" name="payout_cc" bind:value={r}>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="cell-content">
+                            <span>CD</span>
+                            <input type="number" id="payout_cd" name="payout_cd" bind:value={s}>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="cell-content">
+                            <span>DC</span>
+                            <input type="number" id="payout_dc" name="payout_dc" bind:value={t}>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="cell-content">
+                            <span>DD</span>
+                            <input type="number" id="payout_dd" name="payout_dd" bind:value={p}>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     <div id="defaultStrategy">
       <div id="dsString">Default Strategy:</div>
       <select id="strategySelect" bind:value={defaultStrategy}>
@@ -507,7 +545,8 @@
   #controls {
     position: absolute;
     left: 0%;
-    top: 30%;
+    top: 17%;
+    width: 15%;
     /*transform: translateY(-50%);*/
     font-size: 1rem; /* Large text */
     padding: 0.2rem;
@@ -545,6 +584,41 @@
     }
   }
 
+  /* Axelrod payoff matrix */
+        table {
+            border-collapse: collapse;
+            border-radius: 8px; /* Equivalent to Tailwind rounded-md */
+            overflow: hidden; /* Hide overflow for rounded corners */
+            table-layout: fixed; /* Fix table layout for better column width control */
+            background-color: #f9fafb; /* Equivalent to Tailwind bg-gray-50 */
+        }
+
+        .cell-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .cell-content span {
+            font-size: 14px; /* Equivalent to Tailwind text-sm */
+            color: #374151; /* Equivalent to Tailwind text-gray-700 */
+            margin-bottom: 0.15rem; /* Equivalent to Tailwind mb-1 */
+        }
+
+        input[type="number"] {
+            width: 75%;
+            padding: 0.3rem;
+            border: 1px solid #d1d5db; /* Equivalent to Tailwind gray-300 */
+            border-radius: 6px; /* Equivalent to Tailwind rounded-md */
+            text-align: center;
+            -moz-appearance: textfield; /* Hide default number input arrows in Firefox */
+        }
+
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none; /* Hide default number input arrows in Chrome, Safari, Edge */
+            margin: 0;
+        }
 </style>
 
 <svelte:head>

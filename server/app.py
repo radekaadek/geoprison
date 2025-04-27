@@ -56,7 +56,7 @@ async def root():
     return {"message": "Hello"}
 
 @app.post("/game_step")
-async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: float | int = 0):
+async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: float | int = 0, r: int = 3, s: int = 0, t: int = 5, p: int = 1):
     """
     Simulates one step of the spatial prisoner's dilemma.
     Each hexagon plays against its neighbors for the specified number of rounds.
@@ -73,6 +73,8 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
         A dictionary containing the updated strategy map for the next step
         and the total scores achieved by each hexagon in this step.
     """
+
+    gameToUse = axl.Game(r=r, s=s, t=t, p=p)
 
     if noise < 0:
         return HTTPException(status_code=400, detail="Noise must be a non-negative number.")
@@ -135,7 +137,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
             # Ensure players are reset if necessary (clone usually handles this)
             # center_player.reset() # Generally not needed with clone()
             # neighbor_player.reset()
-            game = axl.Match(players=(center_player, neighbor_player), turns=rounds, noise=noise)
+            game = axl.Match(players=(center_player, neighbor_player), turns=rounds, noise=noise, game=gameToUse)
             game.play()
 
             # Get scores - assumes center_player is player 0, neighbor_player is player 1
