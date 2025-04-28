@@ -519,6 +519,8 @@
     background-color: #f1f1f1;
     box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
     z-index: 1001;
+    white-space: nowrap; /* Prevent text wrapping */
+    padding: 0.2rem;
   }
 
   /* Show the dropdown menu on hover */
@@ -537,12 +539,13 @@
 
   button {
     background-color: red;
+    width: 100%;
     color: white;
     font-size: 18px; /* Smaller font for responsiveness */
     padding: 12px 24px; /* Adjusted padding */
     border: none;
     border-radius: 8px;
-    white-space: nowrap; /* Prevent text wrapping */
+    text-align: center;
   }
 
   /* Make it more responsive */
