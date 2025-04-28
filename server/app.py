@@ -56,7 +56,7 @@ async def root():
     return {"message": "Hello"}
 
 @app.post("/game_step")
-async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: float | int = 0, r: int = 3, s: int = 0, t: int = 5, p: int = 1):
+async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: float | int = 0, r: float | int = 3, s: float | int = 0, t: float | int = 5, p: float | int = 1):
     """
     Simulates one step of the spatial prisoner's dilemma.
     Each hexagon plays against its neighbors for the specified number of rounds.

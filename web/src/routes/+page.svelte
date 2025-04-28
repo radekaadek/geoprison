@@ -35,7 +35,7 @@
   $: handleStepChange(currentStep)
 
   const handleStepChange = (step: number) => {
-    if (step > 0 && step < gameStates.length) {
+    if (step < gameStates.length) {
       updateGameHexagons(gameStates[currentStep], idToPolygon)
     }
   }
@@ -108,8 +108,8 @@
   const getPolygonScorePopupContent = (hexID: string, score: number, strategy: string) => {
     return `
     <div id='${hexID}Score'>
-      <p>Strategy: ${strategy}</p>
-      <p>Score: ${score}</p>
+      <p>Current Strategy: ${strategy}</p>
+      <p>Previous Score: ${score}</p>
       <p>Hex ID: ${hexID}</p>
     </div>
   `}
@@ -327,8 +327,20 @@
     hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
     layerControl.addOverlay(hexagonLayer, hexagonLayerName)
     hexagonLayer.addTo(map)
+
+    // Add the starting strategies to the results
+    const startingStrategies: Map<string, stratAndScore> = new Map()
+    idToStrategy.forEach((strategy, hexID) => {
+      const score = 0
+      startingStrategies.set(hexID, {
+        strategy: strategy,
+        score: score
+      })
+    })
+    gameStates.push(startingStrategies)
+    currentStep += 1
   
-    for (let i = 0; i < numberOfSteps; i++) {
+    for (let i = currentStep; i < numberOfSteps; i++) {
       const gameResults = await game_step(idToStrategy, numberOfRounds, r, s, t, p)
         .then(response => {
           if (!response.ok) {
@@ -428,13 +440,13 @@
                 <tr>
                     <td>
                         <div class="cell-content">
-                            <span>CC</span>
+                            <span>CC/R</span>
                             <input type="number" id="payout_cc" name="payout_cc" bind:value={r}>
                         </div>
                     </td>
                     <td>
                         <div class="cell-content">
-                            <span>CD</span>
+                            <span>CD/S</span>
                             <input type="number" id="payout_cd" name="payout_cd" bind:value={s}>
                         </div>
                     </td>
@@ -442,13 +454,13 @@
                 <tr>
                     <td>
                         <div class="cell-content">
-                            <span>DC</span>
+                            <span>DC/T</span>
                             <input type="number" id="payout_dc" name="payout_dc" bind:value={t}>
                         </div>
                     </td>
                     <td>
                         <div class="cell-content">
-                            <span>DD</span>
+                            <span>DD/P</span>
                             <input type="number" id="payout_dd" name="payout_dd" bind:value={p}>
                         </div>
                     </td>
