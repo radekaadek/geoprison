@@ -418,6 +418,23 @@
     })
     idToStrategy = randomizedStrategies
   }
+
+  const dropdownToggle = () => {
+    // check if its not a device with hover
+    if (typeof window.matchMedia !== 'undefined') {
+      if (window.matchMedia('(hover: none)').matches) {
+        const dropdown = document.getElementById("strategiesToRandomize");
+        if (dropdown) {
+          // dropdown.style.display = "block";
+          if (dropdown.style.display === "none") {
+            dropdown.style.display = "block";
+          } else {
+            dropdown.style.display = "none";
+          }
+        }
+      }
+    }
+  }
   
   onMount(async () => {
       runApp();
@@ -466,16 +483,16 @@
                 </tr>
             </tbody>
         </table>
-    <div id="defaultStrategy">
-      <div id="dsString">Default Strategy:</div>
-      <select id="strategySelect" bind:value={defaultStrategy}>
-        {#each [...strategy_to_color.keys()] as strategy}
-          <option value={strategy}>{strategy}</option>
-        {/each}
-      </select>
-    </div>
+    <!-- <div id="defaultStrategy"> -->
+    <!--   <div id="dsString">Default Strategy:</div> -->
+    <!--   <select id="strategySelect" bind:value={defaultStrategy}> -->
+    <!--     {#each [...strategy_to_color.keys()] as strategy} -->
+    <!--       <option value={strategy}>{strategy}</option> -->
+    <!--     {/each} -->
+    <!--   </select> -->
+    <!-- </div> -->
      <div class="dropdown">
-      <button class="dropbtn">Strategies to randomize</button>
+      <button class="dropbtn" on:click={()=>dropdownToggle()}>Strategies to Randomize</button>
       <div id="strategiesToRandomize" class="dropdown-content">
         {#each [...strategy_to_color.keys()] as strategy}
           <div class="strategyCheckbox">
@@ -524,7 +541,11 @@
   }
 
   /* Show the dropdown menu on hover */
-  .dropdown:hover .dropdown-content {display: block;}
+  /* .dropdown:hover .dropdown-content {display: block;} */
+  @media (any-hover: hover) {
+    .dropdown:hover .dropdown-content {display: block;}
+  }
+  /* On click for mobile in script */
 
   /* Change the background color of the dropdown button when the dropdown content is shown */
   .dropdown:hover .dropbtn {background-color: #3e8e41;} 
