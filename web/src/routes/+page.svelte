@@ -338,9 +338,8 @@
       })
     })
     gameStates.push(startingStrategies)
-    currentStep += 1
   
-    for (let i = currentStep; i < numberOfSteps; i++) {
+    for (let i = 1; i <= numberOfSteps; i++) {
       const gameResults = await game_step(idToStrategy, numberOfRounds, r, s, t, p)
         .then(response => {
           if (!response.ok) {
@@ -383,7 +382,7 @@
       polygon.setStyle({ color: color })
       // add a popup with the strategy name and score
       const score = queryResult.score
-      if (score) {
+      if (score !== undefined) {
         // clear the previous popup
         polygon.unbindPopup()
         const popup = getPolygonScorePopupContent(hexID, score, strat)
@@ -624,6 +623,7 @@
             border-radius: 6px; /* Equivalent to Tailwind rounded-md */
             text-align: center;
             -moz-appearance: textfield; /* Hide default number input arrows in Firefox */
+            appearance: textfield;
         }
 
         input[type="number"]::-webkit-outer-spin-button,
