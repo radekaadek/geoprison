@@ -422,11 +422,19 @@
   const dropdownMobileToggle = () => {
     if (typeof window.matchMedia !== 'undefined' && window.matchMedia('(hover: none)').matches) {
       const dropdown = document.getElementById("strategiesToRandomize");
+      const dropbtn = document.getElementById("dropbtn");
       if (dropdown) {
         if (dropdown.style.display === "none") {
           dropdown.style.display = "block";
+          // change color of dropdown button
+          if (dropbtn) {
+            dropbtn.style.backgroundColor = "#3e8e41";
+          }
         } else {
           dropdown.style.display = "none";
+          if (dropbtn) {
+            dropbtn.style.backgroundColor = "red";
+          }
         }
       }
     }
@@ -488,7 +496,7 @@
     <!--   </select> -->
     <!-- </div> -->
      <div class="dropdown">
-      <button class="dropbtn" on:click={()=>dropdownMobileToggle()}>Strategies to Randomize</button>
+      <button class="dropbtn" id="dropbtn" on:click={()=>dropdownMobileToggle()}>Strategies to Randomize</button>
       <div id="strategiesToRandomize" class="dropdown-content">
         {#each [...strategy_to_color.keys()] as strategy}
           <div class="strategyCheckbox">
@@ -540,11 +548,11 @@
   /* .dropdown:hover .dropdown-content {display: block;} */
   @media (any-hover: hover) {
     .dropdown:hover .dropdown-content {display: block;}
+    .dropdown:hover .dropbtn {background-color: #3e8e41;} 
   }
   /* On click for mobile in script */
 
   /* Change the background color of the dropdown button when the dropdown content is shown */
-  .dropdown:hover .dropbtn {background-color: #3e8e41;} 
   .centerTop {
     cursor: pointer;
     position: absolute;

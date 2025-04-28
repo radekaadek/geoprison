@@ -44,6 +44,12 @@
     flex-direction: column;
   }
 
+  .sliderValue {
+    text-align: center;
+    justify-content: center;
+    font-size: 1rem;
+  }
+
   .sliderField {
     text-align: center;
     justify-content: center;
