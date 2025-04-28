@@ -419,18 +419,14 @@
     idToStrategy = randomizedStrategies
   }
 
-  const dropdownToggle = () => {
-    // check if its not a device with hover
-    if (typeof window.matchMedia !== 'undefined') {
-      if (window.matchMedia('(hover: none)').matches) {
-        const dropdown = document.getElementById("strategiesToRandomize");
-        if (dropdown) {
-          // dropdown.style.display = "block";
-          if (dropdown.style.display === "none") {
-            dropdown.style.display = "block";
-          } else {
-            dropdown.style.display = "none";
-          }
+  const dropdownMobileToggle = () => {
+    if (typeof window.matchMedia !== 'undefined' && window.matchMedia('(hover: none)').matches) {
+      const dropdown = document.getElementById("strategiesToRandomize");
+      if (dropdown) {
+        if (dropdown.style.display === "none") {
+          dropdown.style.display = "block";
+        } else {
+          dropdown.style.display = "none";
         }
       }
     }
@@ -492,7 +488,7 @@
     <!--   </select> -->
     <!-- </div> -->
      <div class="dropdown">
-      <button class="dropbtn" on:click={()=>dropdownToggle()}>Strategies to Randomize</button>
+      <button class="dropbtn" on:click={()=>dropdownMobileToggle()}>Strategies to Randomize</button>
       <div id="strategiesToRandomize" class="dropdown-content">
         {#each [...strategy_to_color.keys()] as strategy}
           <div class="strategyCheckbox">
