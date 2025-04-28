@@ -527,20 +527,20 @@
     <!--     {/each} -->
     <!--   </select> -->
     <!-- </div> -->
-   {#if loadedStrategies}
       <div class="dropdown">
         <button class="dropbtn" id="dropbtn" on:click={()=>dropdownMobileToggle()}>Strategies to Randomize</button>
         <div id="strategiesToRandomize" class="dropdown-content">
+         {#if loadedStrategies}
           {#each [...strategy_to_color.keys()] as strategy}
             <div class="strategyCheckbox">
               <input type="checkbox" id={strategy}/>
               <label for={strategy}>{strategy}</label>
             </div>
           {/each}
+         {/if}
         </div>
       </div> 
       <button on:click={() => randomizeHexStrategies()}>Randomize Strategies</button>
-    {/if}
     <Slider label="Noise" min={0} max={1} step={0.1} bind:value={noise} {map} />
     <Slider label="Hex Level" min={0} max={15} step={1} bind:value={hexLevel} {map} />
     <Slider label="Rounds" min={1} max={50} step={1} bind:value={numberOfRounds} {map} />
