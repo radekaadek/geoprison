@@ -22,6 +22,8 @@
   let numberOfRounds = 15
   let numberOfSteps = 15
   let currentStep = 0
+  // Whether the strategies have been loaded from the server
+  let loadedStrategies = false
 
   // Axelrod payoff matrix
   let r = 3
@@ -48,29 +50,29 @@
 
   let defaultStrategy = "Tester"
   const strategy_to_color: Map<string, string> = new Map([
-    ["Tester", "yellow"],
-    ["Tit-for-tat", "blue"],
-    ["Random", "black"],
-    ["Harrington", "red"],
-    ["Suspicious tit-for-tat", "purple"],
-    ["Forgiving tit-for-tat", "brown"],
-    ["Grudger", "orange"],
-    ["Cooperator", "green"],
-    ["Defector", "pink"],
-    ["Alternator", "gray"],
+  //   ["Tester", "yellow"],
+  //   ["Tit-for-tat", "blue"],
+  //   ["Random", "black"],
+  //   ["Harrington", "red"],
+  //   ["Suspicious tit-for-tat", "purple"],
+  //   ["Forgiving tit-for-tat", "brown"],
+  //   ["Grudger", "orange"],
+  //   ["Cooperator", "green"],
+  //   ["Defector", "pink"],
+  //   ["Alternator", "gray"],
   ])
   const strategyToID: Map<string, number> = new Map(Object.entries({
-    "Tit-for-tat": 0,
-    "Random": 1,
-    "Harrington": 2,
-    "Tester": 3,
-    "Defector": 4,
-    "Cooperator": 5,
-    "Alternator": 6,
-    "Suspicious tit-for-tat": 7,
-    "Forgiving tit-for-tat": 8,
-    "Grudger": 9,
-  }))
+  //   "Alternator": 0,
+  //   "Cooperator": 1,
+  //   "Defector": 2,
+  //   "Forgiving tit-for-tat": 3,
+  //   "Grudger": 4,
+  //   "Harrington": 5,
+  //   "Random": 6,
+  //   "Suspicious tit-for-tat": 7,
+  //   "Tester": 8,
+  //   "Tit-for-tat": 9,
+  }));
 
   type leafletType = typeof import("leaflet")
 
@@ -182,7 +184,7 @@
     return zoomToHexLevel.has(zoom) ? zoomToHexLevel.get(zoom) as number : Math.floor(zoom*0.6)
   }
 
-  async function loadMap() {
+  async function loadMap(strategyPromise: Promise<Response>) {
     // Create map after the component is mounted
     map = L.map('map').setView([52, 20], startingMapZoom);
           
@@ -205,6 +207,32 @@
     }
 
     layerControl = L.control.layers(tileLayers).addTo(map)
+
+    // Before adding the controls ask the server for the strategies
+    let strategiesResponse: Map<string, string[]> = await strategyPromise
+    .catch(error => {
+      console.error('Error:', error);
+      const msg = `The server at ${serverURL} is not running. Please start the server before starting the game.`;
+      alert(msg);
+      return
+    })
+    .then(async response => {
+      if (!response || !response.ok) {
+        const msg = `The server at ${serverURL} is not running. Please start the server before starting the game.`;
+        alert(msg);
+        return
+      }
+      return await response.json();
+    })
+
+    for (const [id, strategy] of Object.entries(strategiesResponse)) {
+      strategy_to_color.set(strategy[0], strategy[1])
+      strategyToID.set(strategy[0], parseInt(id))
+    }
+
+    loadedStrategies = true
+
+
     map.pm.addControls({  
       position: 'topleft',  
       drawCircleMarker: false,
@@ -255,12 +283,15 @@
 
     return { L, leafletCSS, geoman };
   }
+
   async function runApp() {
-    loadLeafletModules().then(() => {
-        loadMap()
+    const serverStatusPromise = fetch(`${serverURL}/`)
+    const strategyPromise = fetch(`${serverURL}/strategies`)
+    loadLeafletModules().then(async () => {
+        await loadMap(strategyPromise)
     });
     // Check if the server is running
-    const response = await fetch(`${serverURL}/`)
+    const response = await serverStatusPromise
       .then(response => {
         if (!response.ok) {
           const msg = `The server at ${serverURL} is not running. Please start the server before starting the game.`;
@@ -448,6 +479,7 @@
 
 <div id="map">
 </div>
+
 {#if showStartGameButton}
   <button class="centerTop" on:click={() => startGame()}>Start Game</button>
 {/if}
@@ -495,18 +527,20 @@
     <!--     {/each} -->
     <!--   </select> -->
     <!-- </div> -->
-     <div class="dropdown">
-      <button class="dropbtn" id="dropbtn" on:click={()=>dropdownMobileToggle()}>Strategies to Randomize</button>
-      <div id="strategiesToRandomize" class="dropdown-content">
-        {#each [...strategy_to_color.keys()] as strategy}
-          <div class="strategyCheckbox">
-            <input type="checkbox" id={strategy}/>
-            <label for={strategy}>{strategy}</label>
-          </div>
-        {/each}
-      </div>
-    </div> 
-    <button on:click={() => randomizeHexStrategies()}>Randomize Strategies</button>
+   {#if loadedStrategies}
+      <div class="dropdown">
+        <button class="dropbtn" id="dropbtn" on:click={()=>dropdownMobileToggle()}>Strategies to Randomize</button>
+        <div id="strategiesToRandomize" class="dropdown-content">
+          {#each [...strategy_to_color.keys()] as strategy}
+            <div class="strategyCheckbox">
+              <input type="checkbox" id={strategy}/>
+              <label for={strategy}>{strategy}</label>
+            </div>
+          {/each}
+        </div>
+      </div> 
+      <button on:click={() => randomizeHexStrategies()}>Randomize Strategies</button>
+    {/if}
     <Slider label="Noise" min={0} max={1} step={0.1} bind:value={noise} {map} />
     <Slider label="Hex Level" min={0} max={15} step={1} bind:value={hexLevel} {map} />
     <Slider label="Rounds" min={1} max={50} step={1} bind:value={numberOfRounds} {map} />
@@ -545,12 +579,11 @@
   }
 
   /* Show the dropdown menu on hover */
-  /* .dropdown:hover .dropdown-content {display: block;} */
+  /* On click for mobile in script */
   @media (any-hover: hover) {
     .dropdown:hover .dropdown-content {display: block;}
     .dropdown:hover .dropbtn {background-color: #3e8e41;} 
   }
-  /* On click for mobile in script */
 
   /* Change the background color of the dropdown button when the dropdown content is shown */
   .centerTop {

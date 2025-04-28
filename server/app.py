@@ -38,22 +38,28 @@ stringToStrat = {
     'Grudger': axl.Grudger(),
 }
 
-idToStrategy = {
-    0: "Tit-for-tat",
-    1: "Random",
-    2: "Harrington",
-    3: "Tester",
-    4: "Defector",
-    5: "Cooperator",
-    6: "Alternator",
-    7: "Suspicious tit-for-tat",
-    8: "Forgiving tit-for-tat",
-    9: "Grudger",
+idStrategyType = Dict[int, Tuple[str, str]]
+
+idToStrategy: idStrategyType = {
+    0: ("Alternator", "gray"),
+    1: ("Cooperator", "green"),
+    2: ("Defector", "pink"),
+    3: ("Forgiving tit-for-tat", "brown"),
+    4: ("Grudger", "orange"),
+    5: ("Harrington", "red"),
+    6: ("Random", "black"),
+    7: ("Suspicious tit-for-tat", "purple"),
+    8: ("Tester", "yellow"),
+    9: ("Tit-for-tat", "blue"),
 }
 
 @app.get("/")
 async def root():
     return {"message": "Hello"}
+
+@app.get("/strategies")
+async def strategies() -> idStrategyType:
+    return idToStrategy
 
 @app.post("/game_step")
 async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: float | int = 0, r: float | int = 3, s: float | int = 0, t: float | int = 5, p: float | int = 1):
@@ -83,7 +89,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
     if rounds < 0:
         return HTTPException(status_code=400, detail="Rounds must be a non-negative number.")
 
-    hexToStrategy = {hexID: idToStrategy[hexToStrategyID[hexID]] for hexID in hexToStrategyID}
+    hexToStrategy = {hexID: idToStrategy[hexToStrategyID[hexID]][0] for hexID in hexToStrategyID}
 
     all_hex_ids = set(hexToStrategy.keys())
     if not all_hex_ids:
