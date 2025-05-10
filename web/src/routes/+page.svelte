@@ -76,6 +76,63 @@
 
   type leafletType = typeof import("leaflet")
 
+  const saveGame = () => {
+    const obj = Object.fromEntries(new Map())
+    const strategiesObj = Object.fromEntries(idToStrategy)
+    obj["strategies"] = strategiesObj
+    obj["numberOfRounds"] = numberOfRounds
+    obj["hexLevel"] = hexLevel
+    obj["numberOfSteps"] = numberOfSteps
+    obj["R"] = r
+    obj["S"] = s
+    obj["T"] = t
+    obj["P"] = p
+    const strategiesString = JSON.stringify(obj)
+    const blob = new Blob([strategiesString], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "strategies.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const loadGame = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json";
+    input.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) {
+        return;
+      }
+      const reader = new FileReader();
+      reader.readAsText(file);
+      reader.onload = async (e) => {
+        const strategies = JSON.parse(e.target.result);
+        const newStrategiesObj = strategies["strategies"]
+        const newNumberOfRounds = strategies["numberOfRounds"]
+        const newHexLevel = strategies["hexLevel"]
+        const newNumberOfSteps = strategies["numberOfSteps"]
+        const newR = strategies["R"]
+        const newS = strategies["S"]
+        const newT = strategies["T"]
+        const newP = strategies["P"]
+        idToStrategy = new Map(Object.entries(newStrategiesObj))
+        numberOfRounds = newNumberOfRounds
+        hexLevel = newHexLevel
+        numberOfSteps = newNumberOfSteps
+        r = newR
+        s = newS
+        t = newT
+        p = newP
+        console.log(idToStrategy)
+        updatePolys()
+      };
+    });
+    input.click();
+  }
+
   // removes all layers except the basemap
   function removeAllLayers() {
     for(; Object.keys(map._layers).length > 1;) {
@@ -148,6 +205,34 @@
     })
   }
 
+  const updatePolys = () => {
+    const hexes = idToStrategy.keys()
+    idToPolygon.forEach((polygon, hex) => {
+      if (!idToStrategy.has(hex)) {
+        polygon.remove()
+        idToPolygon.delete(hex)
+      }
+    })
+    hexes.forEach((hex) => {
+      const color = strategy_to_color.get(idToStrategy.get(hex) as string)
+      if (!idToPolygon.has(hex)) {
+        const boundary = cellToBoundary(hex, true)
+        const polygon = L.polygon(boundary, {
+          color: color,
+          opacity: 0.5,
+        }).on("click", (e) => onPolygonClick(e))
+        idToPolygon.set(hex, polygon)
+      }
+      else {
+        const polygon = idToPolygon.get(hex)
+        polygon?.setStyle({ color: color })
+      }
+    })
+    hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
+    layerControl.addOverlay(hexagonLayer, hexagonLayerName)
+    hexagonLayer.addTo(map)
+  }
+
   // poly is a polygon geojson
   function editPolygon(poly: any) {
     removeHexagons()
@@ -159,15 +244,7 @@
     const hexagons = polygonToCells(polygon, hexLevel)
     const boundaries = hexagons.map(c => cellToBoundary(c, true))
     idToStrategy = new Map(hexagons.map((hex, i) => [hex, defaultStrategy]));
-    const color = strategy_to_color.get(defaultStrategy)
-    const polygons = boundaries.map(b => L.polygon(b, {
-      color: color,
-      opacity: 0.5,
-    }).on("click", (e) => onPolygonClick(e)))
-    idToPolygon = new Map(hexagons.map((hex, i) => [hex, polygons[i]]));
-    hexagonLayer = L.layerGroup(Array.from(idToPolygon.values()))
-    layerControl.addOverlay(hexagonLayer, hexagonLayerName)
-    hexagonLayer.addTo(map)
+    updatePolys()
     hexagons.length > 0 ? showStartGameButton = true : showStartGameButton = false
   }
 
@@ -422,6 +499,16 @@
     })
   }
 
+  // Update hexagons with the current idToStrategy
+  const updateHexagons = (idToPolygon: Map<string, L.Polygon>, idToStrategy: Map<string, string>) => {
+    idToPolygon.forEach((polygon, hexID) => {
+      const queryResult = idToStrategy.get(hexID) as string
+      const strat = queryResult
+      const color = strategy_to_color.get(strat)
+      polygon.setStyle({ color: color })
+    })
+  }
+
   const randomizeHexStrategies = () => {
     const hexagons = idToPolygon.keys()
     const hexArray = Array.from(hexagons)
@@ -528,7 +615,7 @@
     <!--   </select> -->
     <!-- </div> -->
       <div class="dropdown">
-        <button class="dropbtn" id="dropbtn" on:click={()=>dropdownMobileToggle()}>Strategies to Randomize</button>
+        <button class="dropbtn" id="dropbtn" on:click={()=>dropdownMobileToggle()}>Strategies to Randomize with</button>
         <div id="strategiesToRandomize" class="dropdown-content">
          {#if loadedStrategies}
           {#each [...strategy_to_color.keys()] as strategy}
@@ -545,6 +632,10 @@
     <Slider label="Hex Level" min={0} max={15} step={1} bind:value={hexLevel} {map} />
     <Slider label="Rounds" min={1} max={50} step={1} bind:value={numberOfRounds} {map} />
     <Slider label="Number of Steps to Generate" min={1} max={200} step={1} bind:value={numberOfSteps} {map} />
+    <div class="saveLoad">
+      <button on:click={() => saveGame()}>Save Game State</button>
+      <button on:click={() => loadGame()}>Load Game State</button>
+    </div>
   </div>
 {:else}
   <div id="controls">
@@ -593,6 +684,7 @@
     left: 50%;
     transform: translateX(-50%);
     z-index: 1000; /* Ensure it's above Leaflet */
+    width: max(10%, 100px);
   }
 
   button {
@@ -618,7 +710,7 @@
     position: absolute;
     left: 0%;
     top: 17%;
-    width: 15%;
+    width: 12%;
     /*transform: translateY(-50%);*/
     font-size: 1rem; /* Large text */
     padding: 0.2rem;
