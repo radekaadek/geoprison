@@ -87,6 +87,7 @@
     obj["S"] = s
     obj["T"] = t
     obj["P"] = p
+    obj["noise"] = noise
     const strategiesString = JSON.stringify(obj)
     const blob = new Blob([strategiesString], {type: "application/json"});
     const url = URL.createObjectURL(blob);
@@ -114,6 +115,7 @@
         const newNumberOfRounds = strategies["numberOfRounds"]
         const newHexLevel = strategies["hexLevel"]
         const newNumberOfSteps = strategies["numberOfSteps"]
+        const newNoise = strategies["noise"]
         const newR = strategies["R"]
         const newS = strategies["S"]
         const newT = strategies["T"]
@@ -126,8 +128,10 @@
         s = newS
         t = newT
         p = newP
+        noise = newNoise
         console.log(idToStrategy)
         updatePolys()
+        showStartGameButton = true
       };
     });
     input.click();
@@ -523,6 +527,9 @@
         stratList.push(checkbox.id)
       }
     })
+    if (stratList.length === 0) {
+      stratList.push(...strategy_to_color.keys())
+    }
     hexArray.forEach((hID) => {
       const randomStrategy = stratList[Math.floor(Math.random() * stratList.length)]
       randomizedStrategies.set(hID, randomStrategy)
