@@ -1,9 +1,11 @@
 import axelrod as axl
 import h3
+import time # Not strictly used in the provided snippet, but often useful
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Set, Tuple
-from collections import defaultdict # Useful for accumulating scores
+from typing import Dict, Set, Tuple, FrozenSet, cast
+from collections import defaultdict
+from functools import lru_cache # Import lru_cache
 
 #### Geospatial prisoner's dilemma ####
 
@@ -11,25 +13,58 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], # Allows all origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"], # Allows all methods
+    allow_headers=["*"], # Allows all headers
 )
 
+# --- Helper function to get valid neighbors ---
 def get_valid_neighbors(center_hex: str, all_hexes: Set[str]) -> Set[str]:
-    """Finds neighbors of center_hex that are also in the all_hexes set."""
+    """
+    Finds neighbors of center_hex that are also in the all_hexes set.
+    h3.grid_disk can raise H3CellError (a ValueError subclass) if center_hex is invalid.
+    """
+    # This will raise h3.H3CellError if center_hex is not a valid H3 cell index string
     potential_neighbors = h3.grid_disk(center_hex, 1)
     actual_neighbors = {neighbor for neighbor in potential_neighbors
                         if neighbor != center_hex and neighbor in all_hexes}
     return actual_neighbors
 
-# Map strategy names to Axelrod strategy objects
+# --- Cached function to calculate neighbor counts ---
+@lru_cache(maxsize=10)
+def _get_cached_hex_neighbors_counts(hex_ids_fset: FrozenSet[str]) -> Dict[str, int]:
+    """
+    Calculates the number of valid neighbors for each hex ID in the input frozenset.
+    This function is cached using LRU strategy.
+    Args:
+        hex_ids_fset: A frozenset of H3 hexagon ID strings.
+    Returns:
+        A dictionary mapping each hex ID string to its count of valid neighbors.
+    Raises:
+        ValueError: If any hex_id in hex_ids_fset is invalid for h3.grid_disk.
+    """
+    # print(f"DEBUG: Cache MISS for _get_cached_hex_neighbors_counts with: {hex_ids_fset}") # For debugging cache behavior
+    hex_ids_set = set(hex_ids_fset) # Convert to set for efficient use in get_valid_neighbors
+    counts: Dict[str, int] = {}
+    for hex_id in hex_ids_fset:
+        try:
+            # get_valid_neighbors calls h3.grid_disk, which can raise H3CellError (ValueError)
+            neighbors = get_valid_neighbors(hex_id, hex_ids_set)
+            counts[hex_id] = len(neighbors)
+        except ValueError as e: # Catch H3CellError or other ValueErrors from h3 library
+            # print(f"DEBUG: Invalid H3 index '{hex_id}' encountered in _get_cached_hex_neighbors_counts: {e}")
+            # Re-raise the error with context. The caller (game_step) will handle converting it to HTTPException.
+            raise ValueError(f"Invalid H3 index '{hex_id}': {e}") from e
+    return counts
+
+
+# --- Strategy Definitions ---
 stringToStrat = {
     'Tit-for-tat': axl.TitForTat(),
     'Random': axl.Random(),
-    'Harrington': axl.SecondByHarrington(),
-    'Tester': axl.SecondByTester(),
+    'Harrington': axl.SecondByHarrington(), # Note: axl.Harrington might be a different strategy if it exists
+    'Tester': axl.SecondByTester(), # Note: axl.Tester might be a different strategy
     'Defector': axl.Defector(),
     'Cooperator': axl.Cooperator(),
     'Alternator': axl.Alternator(),
@@ -46,164 +81,167 @@ idToStrategy: idStrategyType = {
     2: ("Defector", "pink"),
     3: ("Forgiving tit-for-tat", "brown"),
     4: ("Grudger", "orange"),
-    5: ("Harrington", "red"),
+    5: ("Harrington", "red"), # Corresponds to axl.SecondByHarrington in stringToStrat
     6: ("Random", "black"),
     7: ("Suspicious tit-for-tat", "purple"),
-    8: ("Tester", "yellow"),
+    8: ("Tester", "yellow"),    # Corresponds to axl.SecondByTester in stringToStrat
     9: ("Tit-for-tat", "blue"),
 }
 
+# --- API Endpoints ---
 @app.get("/")
 async def root():
-    return {"message": "Hello"}
+    """ Basic root endpoint. """
+    return {"message": "Geospatial Prisoner's Dilemma API"}
 
 @app.get("/strategies")
 async def strategies() -> idStrategyType:
+    """ Returns the mapping of strategy IDs to strategy names and colors. """
     return idToStrategy
 
 @app.post("/game_step")
-async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: float | int = 0, r: float | int = 3, s: float | int = 0, t: float | int = 5, p: float | int = 1):
+async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: float = 0.0, r: float = 3, s: float = 0, t: float = 5, p: float = 1):
     """
     Simulates one step of the spatial prisoner's dilemma.
-    Each hexagon plays against its neighbors for the specified number of rounds.
-    Scores are calculated, and hexagons adopt the strategy of their
-    highest-scoring neighbor if that neighbor scored strictly higher.
-
-    Args:\n
-        hexToStrategy: A dictionary where keys are H3 hex IDs (strings)
-                       and values are strategy names (strings).
-        rounds: The number of rounds for each pairwise prisoner's dilemma match.
-        noise: The amount of noise to add to the scores of each match.
-
-    Returns:
-        A dictionary containing the updated strategy map for the next step
-        and the total scores achieved by each hexagon in this step.
     """
+    # --- Input Validation and Setup ---
+    if noise < 0:
+        raise HTTPException(status_code=400, detail="Noise must be a non-negative number.")
+    if rounds <= 0: # Axelrod turns should be positive
+        raise HTTPException(status_code=400, detail="Rounds must be a positive integer.")
 
     gameToUse = axl.Game(r=r, s=s, t=t, p=p)
 
-    if noise < 0:
-        return HTTPException(status_code=400, detail="Noise must be a non-negative number.")
-    if noise == 0:
-        noise = int(0)
-    if rounds < 0:
-        return HTTPException(status_code=400, detail="Rounds must be a non-negative number.")
+    hexToStrategy: Dict[str, str] = {}
+    for hexID, stratID in hexToStrategyID.items():
+        if stratID not in idToStrategy:
+            raise HTTPException(status_code=400, detail=f"Invalid strategy ID: {stratID} for hex {hexID}.")
+        hexToStrategy[hexID] = idToStrategy[stratID][0]
 
-    hexToStrategy = {hexID: idToStrategy[hexToStrategyID[hexID]][0] for hexID in hexToStrategyID}
-
-    all_hex_ids = set(hexToStrategy.keys())
+    all_hex_ids: Set[str] = set(hexToStrategy.keys())
     if not all_hex_ids:
-        return HTTPException(status_code=400, detail="No hexagons provided.")
+        # If there are no hexes, return an empty/appropriate response
+        return {"updated_strategies": {}, "scores": {}}
+        # Or raise HTTPException(status_code=400, detail="No hexagons provided.")
 
-    hexesToNumNeighbors = {}
-    for hexID in all_hex_ids:
-        try:
-            neighbors = get_valid_neighbors(hexID, all_hex_ids)
-        except ValueError as _:
-            return {"error": "Could not find valid neighbors for hex " + hexID}
-        hexesToNumNeighbors[hexID] = len(neighbors)
+    # --- Get Neighbor Counts (Cached) ---
+    all_hex_ids_frozen = frozenset(all_hex_ids)
+    try:
+        # Call the cached function to get neighbor counts
+        hexesToNumNeighbors = _get_cached_hex_neighbors_counts(all_hex_ids_frozen)
+    except ValueError as e:
+        # If _get_cached_hex_neighbors_counts raises ValueError (e.g., for invalid H3 index),
+        # convert it to an HTTPException.
+        raise HTTPException(status_code=400, detail=str(e))
 
-    hexToPlayer = {}
+    # --- Initialize Players ---
+    hexToPlayer: Dict[str, axl.Player] = {}
     for hex_id, strategy_name in hexToStrategy.items():
+        # stringToStrat should contain all strategy names from idToStrategy
         if strategy_name not in stringToStrat:
-            print(f"Error: Unknown strategy '{strategy_name}' for hex {hex_id}")
-            return {"error": f"Unknown strategy name: {strategy_name}"}
+            # This would indicate an inconsistency between idToStrategy and stringToStrat
+            raise HTTPException(status_code=500, detail=f"Internal server error: Strategy '{strategy_name}' not found in stringToStrat map.")
         try:
-            # Use clone() to ensure each player has an independent state,
-            # especially important if running multiple steps or complex strategies.
-             hexToPlayer[hex_id] = stringToStrat[strategy_name].clone()
-        except AttributeError:
-             # Fallback if clone isn't available (older Axelrod?) or for simple types
-             hexToPlayer[hex_id] = stringToStrat[strategy_name]
+            # Clone players to ensure independent states for each match
+            hexToPlayer[hex_id] = stringToStrat[strategy_name].clone()
+        except AttributeError: # Should not happen with standard Axelrod players
+            hexToPlayer[hex_id] = stringToStrat[strategy_name]
 
-    # --- 2. Play Matches and Calculate Total Scores ---
-    # Use defaultdict to easily accumulate scores
-    hexToTotalScore = defaultdict(int)
-    # Keep track of played pairs to avoid double-counting interactions
-    # within this step's score calculation (A vs B is the same interaction as B vs A)
+
+    # --- Play Matches and Calculate Total Scores ---
+    hexToTotalScore = defaultdict(float) # Use float for scores, then cast to int
     played_pairs: Set[Tuple[str, str]] = set()
 
     for center_hex in all_hex_ids:
-        neighbors = get_valid_neighbors(center_hex, all_hex_ids)
         center_player = hexToPlayer[center_hex]
+        
+        # Optimization: if a hex has no neighbors, it plays no games with others.
+        # Its score will remain 0 unless it plays against itself (not typical in this model).
+        if hexesToNumNeighbors.get(center_hex, 0) == 0:
+            continue # No neighbors to play against
 
-        for neighbor_hex in neighbors:
-            # Create a sorted tuple to represent the pair uniquely
+        # We need the actual neighbors, not just the count here.
+        # This call is not cached per hex_id, but the overall structure is determined by all_hex_ids.
+        # get_valid_neighbors itself is relatively cheap if h3.grid_disk is fast for single hexes.
+        neighbors_of_center = get_valid_neighbors(center_hex, all_hex_ids)
+
+        for neighbor_hex in neighbors_of_center:
             pair = tuple(sorted((center_hex, neighbor_hex)))
             if pair in played_pairs:
-                continue # Already processed this interaction
-
-            if len(pair) != 2:
-                print(f"Invalid pair: {pair}")
-                continue
+                continue # This pair has already played in this step
+            
             played_pairs.add(pair)
             neighbor_player = hexToPlayer[neighbor_hex]
 
-            # Create and play the match
-            # Ensure players are reset if necessary (clone usually handles this)
-            # center_player.reset() # Generally not needed with clone()
-            # neighbor_player.reset()
-            game = axl.Match(players=(center_player, neighbor_player), turns=rounds, noise=noise, game=gameToUse)
-            game.play()
+            # Axelrod Match setup
+            # Players are already cloned, so they have fresh state for each set of interactions.
+            # If strategies had memory across different opponents within the same game_step,
+            # further resets might be needed, but clone() usually suffices.
+            match = axl.Match(players=(center_player, neighbor_player), turns=rounds, noise=noise, game=gameToUse)
+            try:
+                match.play()
+            except Exception as e:
+                # Catch potential errors during match play if any strategy behaves unexpectedly
+                # This is a safeguard; robust strategies shouldn't error here.
+                raise HTTPException(status_code=500, detail=f"Error during match between {center_hex} ({hexToStrategy[center_hex]}) and {neighbor_hex} ({hexToStrategy[neighbor_hex]}): {e}")
 
-            # Get scores - assumes center_player is player 0, neighbor_player is player 1
-            # Verify this assumption based on how players were passed to axl.Match
-            res = game.final_score()
-            if res is None:
-                print(f"Game had no result: {game}")
-                continue
-            score_center, score_neighbor = res
+            final_scores = match.final_score() # Returns a tuple of total scores (player1_score, player2_score)
+            
+            if final_scores is None: # Should not happen if turns > 0
+                score_center_player, score_neighbor_player = 0.0, 0.0
+            else:
+                # Ensure scores are float for accumulation
+                score_center_player, score_neighbor_player = float(final_scores[0]), float(final_scores[1])
 
-            # get the number of neighbors for the center and neighbor
-            # center_num_neighbors = hexesToNumNeighbors[center_hex]
-            # neighbor_num_neighbors = hexesToNumNeighbors[neighbor_hex]
-            # score_center *= center_num_neighbors
-            # score_neighbor *= neighbor_num_neighbors
+            hexToTotalScore[center_hex] += score_center_player
+            hexToTotalScore[neighbor_hex] += score_neighbor_player
 
-            # Add scores to the respective hexagons' totals
-            hexToTotalScore[center_hex] += score_center
-            hexToTotalScore[neighbor_hex] += score_neighbor
-
-    # --- 3. Determine Strategy Updates for the Next Step ---
+    # --- Determine Strategy Updates for the Next Step ---
     nextHexToStrategy = hexToStrategy.copy() # Start with current strategies
 
     for center_hex in all_hex_ids:
-        center_score = hexToTotalScore[center_hex] # Use defaultdict's 0 default if hex played no games
-        neighbors = get_valid_neighbors(center_hex, all_hex_ids)
+        center_original_score = hexToTotalScore[center_hex]
+        
+        # If a hex has no neighbors, its strategy won't change based on neighbor comparison.
+        if hexesToNumNeighbors.get(center_hex, 0) == 0:
+            continue
 
-        if not neighbors:
-            continue # No neighbors to compare with, strategy remains unchanged
+        neighbors_of_center = get_valid_neighbors(center_hex, all_hex_ids)
+        # This check is mostly redundant due to the hexesToNumNeighbors check above, but safe.
+        if not neighbors_of_center: 
+            continue
 
-        # set max and best to its current value
-        max_neighbor_score = hexToTotalScore[center_hex]
-        best_neighbor_strategy_name = hexToStrategy[center_hex]
+        # Initialize 'best' with the current hex's own score and strategy
+        max_score_among_self_and_neighbors = center_original_score
+        strategy_of_max_scorer = hexToStrategy[center_hex]
 
-        # Find the highest score among neighbors
-        for neighbor_hex in neighbors:
-            neighbor_score = hexToTotalScore[neighbor_hex]
-            if neighbor_score > max_neighbor_score:
-                max_neighbor_score = neighbor_score
-                # Store the *original* strategy name of this best-performing neighbor
-                best_neighbor_strategy_name = hexToStrategy[neighbor_hex]
-            # Optional: Handle ties (e.g., randomly pick one, or stick with current)
-            # Current logic picks the first one encountered with the max score.
+        for neighbor_hex in neighbors_of_center:
+            neighbor_total_score = hexToTotalScore[neighbor_hex]
+            if neighbor_total_score > max_score_among_self_and_neighbors:
+                max_score_among_self_and_neighbors = neighbor_total_score
+                strategy_of_max_scorer = hexToStrategy[neighbor_hex] # Original strategy of the best neighbor
 
-        # --- 4. Update Strategy if a Neighbor Did Better ---
-        # Check if found a neighbor AND that neighbor scored strictly higher
-        if best_neighbor_strategy_name is not None and max_neighbor_score > center_score:
-            nextHexToStrategy[center_hex] = best_neighbor_strategy_name
-            # print(f"Hex {center_hex} switching from {hexToStrategy[center_hex]} (score {center_score}) to {best_neighbor_strategy_name} (neighbor score {max_neighbor_score})")
+        # Update strategy if a neighbor (or itself, if it somehow changed strategy and won, which isn't this model)
+        # scored strictly higher than the center_hex's original score.
+        # The key is that `strategy_of_max_scorer` might be different from `hexToStrategy[center_hex]`.
+        if max_score_among_self_and_neighbors > center_original_score:
+            nextHexToStrategy[center_hex] = strategy_of_max_scorer
+        # If tied, or if its own score was highest, it keeps its current strategy (already in nextHexToStrategy).
+
+    # --- Prepare Response ---
+    # Convert scores to integers for the response
+    hexToTotalScore_int: Dict[str, int] = {hexID: int(round(score)) for hexID, score in hexToTotalScore.items()}
+    
+    # Ensure all original hexes are in the scores dictionary, even if they played no games (e.g., isolated hexes)
+    # or had a score of 0. defaultdict handles unplayed hexes as 0.
+    for hexID in all_hex_ids:
+        if hexID not in hexToTotalScore_int:
+            hexToTotalScore_int[hexID] = 0
 
 
-    # --- 5. Return Results ---
-    # convert scores to std: int instead of numpy.int64
-    hexToTotalScore = dict(hexToTotalScore)
-    for hexID, score in hexToTotalScore.items():
-        hexToTotalScore[hexID] = int(score)
     response = {
         "updated_strategies": nextHexToStrategy,
-        # Convert defaultdict back to regular dict for JSON compatibility
-        "scores": hexToTotalScore
+        "scores": hexToTotalScore_int
     }
     return response
 
