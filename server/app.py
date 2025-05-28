@@ -16,10 +16,11 @@ from pyspark.sql.types import StructType, StructField, StringType, IntegerType, 
 
 spark: SparkSession | None = None
 
-# Declare UDF variables globally, but assign them inside lifespan
+# Declare UDF variables globally, but assign them inside lifespan (for those that don't change per request)
 play_match_pandas: Callable | None = None
 determine_next_strategy_pandas: Callable | None = None
-get_h3_neighbors_udf: Callable | None = None # Also for this one
+# get_h3_neighbors_udf is *no longer* declared globally or assigned in lifespan.
+# It will be defined locally within game_step for each request.
 
 # Define the schema for neighbor_info used within the UDF
 neighbor_info_schema = StructType([
@@ -41,7 +42,7 @@ async def lifespan(app: FastAPI):
     global spark
     global play_match_pandas
     global determine_next_strategy_pandas
-    global get_h3_neighbors_udf # Add to global declarations
+    # get_h3_neighbors_udf is removed from global declarations and lifespan
 
     # Startup event logic
     print("Application startup initiated.")
@@ -56,39 +57,7 @@ async def lifespan(app: FastAPI):
         spark.sparkContext.setLogLevel("ERROR") # Reduce verbosity
         print("SparkSession initialized successfully for local execution.")
 
-        # --- MOVE UDF REGISTRATION HERE ---
-        # The UDF functions themselves can remain defined globally,
-        # but the line that creates the Spark UDF object must be after SparkSession creation.
-
-        # --- Helper function to get valid neighbors (Pythonic, used inside UDF) ---
-        # This function definition is fine globally, but its UDF wrapper needs Spark.
-        def get_valid_neighbors_list(center_hex: str, all_hexes: Set[str]) -> List[str]:
-            """
-            Finds neighbors of center_hex that are also in the all_hexes set.
-            Returns as a list for UDF compatibility.
-            """
-            try:
-                potential_neighbors = h3.grid_disk(center_hex, 1)
-                actual_neighbors = [neighbor for neighbor in potential_neighbors
-                                    if neighbor != center_hex and neighbor in all_hexes]
-                return actual_neighbors
-            except ValueError as e:
-                # Log or handle invalid H3 index, or return empty list
-                print(f"Warning: Invalid H3 index '{center_hex}' encountered: {e}")
-                return []
-
-        # Define the regular UDF here
-        get_h3_neighbors_udf = udf(lambda hex_id, all_hex_ids_val: get_valid_neighbors_list(hex_id, all_hex_ids_val), ArrayType(StringType()))
-
-
         # --- UDF for Playing a Single Match (Pandas UDF) ---
-        # Define the Python function for the Pandas UDF within lifespan, or globally
-        # and then wrap it here. Defining globally is generally cleaner if it's stateless.
-        # Let's keep the core Python functions outside for readability, and wrap them here.
-        
-        # --- UDF for Playing a Single Match ---
-        # The return type for a Pandas UDF that returns a Series of tuples (or lists)
-        # is an ArrayType.
         @pandas_udf(ArrayType(FloatType()))
         def _play_match_pandas_internal(
             strat_name1: pd.Series,
@@ -124,6 +93,8 @@ async def lifespan(app: FastAPI):
                     else:
                         results.append([float(final_scores[0]), float(final_scores[1])])
                 except Exception as e:
+                    # Log the specific exception if needed for debugging
+                    # print(f"Error during match play: {e}")
                     results.append([0.0, 0.0])
             return pd.Series(results)
         
@@ -148,6 +119,7 @@ async def lifespan(app: FastAPI):
 
                 if neighbors_info is not None and len(neighbors_info) > 0:
                     for neighbor_info in neighbors_info:
+                        # Ensure neighbor_info is not None and has the expected keys
                         if neighbor_info and 'neighbor_score' in neighbor_info and neighbor_info['neighbor_score'] is not None:
                             neighbor_strat = neighbor_info['neighbor_strategy_name']
                             neighbor_score = float(neighbor_info['neighbor_score'])
@@ -181,6 +153,7 @@ app.add_middleware(
 )
 
 # --- Helper function to get valid neighbors (Pythonic, used inside UDF) ---
+# This function is used by the UDF defined in game_step.
 def get_valid_neighbors_list(center_hex: str, all_hexes: Set[str]) -> List[str]:
     """
     Finds neighbors of center_hex that are also in the all_hexes set.
@@ -195,30 +168,6 @@ def get_valid_neighbors_list(center_hex: str, all_hexes: Set[str]) -> List[str]:
         # Log or handle invalid H3 index, or return empty list
         print(f"Warning: Invalid H3 index '{center_hex}' encountered: {e}")
         return []
-
-# --- Cached function to calculate neighbor counts (less relevant with Spark) ---
-# Keeping this here as it was in your original code, but it's not used in the Spark path.
-@lru_cache(maxsize=10)
-def _get_cached_hex_neighbors_counts(hex_ids_fset: FrozenSet[str]) -> Dict[str, int]:
-    """
-    Calculates the number of valid neighbors for each hex ID in the input frozenset.
-    This function is cached using LRU strategy.
-    Args:
-        hex_ids_fset: A frozenset of H3 hexagon ID strings.
-    Returns:
-        A dictionary mapping each hex ID string to its count of valid neighbors.
-    Raises:
-        ValueError: If any hex_id in hex_ids_fset is invalid for h3.grid_disk.
-    """
-    hex_ids_set = set(hex_ids_fset)
-    counts: Dict[str, int] = {}
-    for hex_id in hex_ids_fset:
-        try:
-            neighbors = get_valid_neighbors_list(hex_id, hex_ids_set)
-            counts[hex_id] = len(neighbors)
-        except ValueError as e:
-            raise ValueError(f"Invalid H3 index '{hex_id}': {e}") from e
-    return counts
 
 # --- Strategy Definitions ---
 stringToStrat = {
@@ -266,9 +215,16 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
     Simulates one step of the spatial prisoner's dilemma using PySpark.
     """
     global spark # Access the initialized SparkSession
+    global play_match_pandas # Access the UDFs initialized in lifespan
+    global determine_next_strategy_pandas
 
     if spark is None:
         raise HTTPException(status_code=500, detail="SparkSession not initialized.")
+    
+    # Ensure UDFs from lifespan are available
+    if play_match_pandas is None or determine_next_strategy_pandas is None:
+        raise HTTPException(status_code=500, detail="Pandas UDFs not initialized.")
+
 
     start_time = time.time() # Start timing for the entire step
 
@@ -297,13 +253,16 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
     all_hex_ids_set = set(hexToStrategyID.keys())
     all_hex_ids_broadcast = spark.sparkContext.broadcast(all_hex_ids_set)
 
-    # UDF to get direct neighbors for a hex
-    get_h3_neighbors_udf = udf(lambda hex_id: get_valid_neighbors_list(hex_id, all_hex_ids_broadcast.value), ArrayType(StringType()))
+    # --- Define get_h3_neighbors_udf *locally* within game_step ---
+    # This ensures it captures the `all_hex_ids_broadcast.value` specific to this request
+    @udf(ArrayType(StringType()))
+    def get_h3_neighbors_udf_local(center_hex: str) -> List[str]:
+        return get_valid_neighbors_list(center_hex, all_hex_ids_broadcast.value)
 
     # --- 1. Generate all (hex, neighbor) pairs ---
     # This exploded DataFrame contains each hex and its valid neighbors within the grid.
     hex_and_its_neighbors_df = hex_df.withColumn(
-        "neighbor_hex_id", explode(get_h3_neighbors_udf(col("hex_id")))
+        "neighbor_hex_id", explode(get_h3_neighbors_udf_local(col("hex_id")))
     ).cache() # Cache for reuse in both match pairing and neighbor aggregation
 
     # --- 2. Play Matches and Calculate Scores ---
@@ -321,7 +280,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
 
     match_scores_df = match_pairs_df.withColumn(
         "scores_tuple",
-        play_match_pandas(
+        play_match_pandas( # Using the globally defined (in lifespan) UDF
             col("hex1_strategy"), col("hex2_strategy"),
             lit(rounds), lit(noise), lit(r), lit(s), lit(t), lit(p)
         )
@@ -377,7 +336,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
             col("s.hex_id").alias("hex_id"),
             col("s.current_strategy_name").alias("current_strategy_name"),
             col("s.total_score").alias("total_score"),
-            determine_next_strategy_pandas(
+            determine_next_strategy_pandas( # Using the globally defined (in lifespan) UDF
                 col("s.current_strategy_name"),
                 col("s.total_score"),
                 # Ensure the UDF receives an empty list for hexes with no neighbors
@@ -394,6 +353,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
     ).cache() # Cache final result before collecting
 
     # Collect results
+    # *** IMPORTANT: Review the impact of collect() for very large grids ***
     updated_strategies_collected = final_update_df.select("hex_id", "updated_strategy").collect()
     updated_strategies: Dict[str, str] = {row.hex_id: row.updated_strategy for row in updated_strategies_collected}
 
@@ -405,7 +365,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
     hex_and_its_neighbors_df.unpersist()
     match_pairs_df.unpersist()
     match_scores_df.unpersist()
-    # hex_scores_df is intermediate, unpersisting is good practice if it was cached, but it's not explicitly cached here.
+    # hex_scores_df is intermediate and not explicitly cached, no need to unpersist it.
     total_scores_df.unpersist()
     hex_with_current_scores_df.unpersist()
     collected_neighbor_info_df.unpersist()
