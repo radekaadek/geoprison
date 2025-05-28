@@ -2,18 +2,34 @@ from contextlib import asynccontextmanager
 import axelrod as axl
 import h3
 import time
+import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Any, Dict, Set, Tuple, FrozenSet, cast, List
+from typing import Any, Callable, Dict, Set, Tuple, FrozenSet, cast, List
 from collections import defaultdict
 from functools import lru_cache
 
 # --- PySpark Imports ---
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, udf, explode, lit, sum as spark_sum, max as spark_max, when as spark_when, coalesce, struct as spark_struct, collect_list, array as spark_array, broadcast
+from pyspark.sql.functions import col, pandas_udf, udf, explode, lit, sum as spark_sum, max as spark_max, when as spark_when, coalesce, struct as spark_struct, collect_list, array as spark_array, broadcast
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType, ArrayType, LongType
 
 spark: SparkSession | None = None
+
+# Declare UDF variables globally, but assign them inside lifespan
+play_match_pandas: Callable | None = None
+determine_next_strategy_pandas: Callable | None = None
+get_h3_neighbors_udf: Callable | None = None # Also for this one
+
+# Define the schema for neighbor_info used within the UDF
+neighbor_info_schema = StructType([
+    StructField("neighbor_hex_id", StringType(), True),
+    StructField("neighbor_strategy_name", StringType(), True),
+    StructField("neighbor_score", FloatType(), True)
+])
+
+# Define the full ArrayType for neighbor_data
+neighbor_data_array_type = ArrayType(neighbor_info_schema)
 
 #### Geospatial prisoner's dilemma ####
 @asynccontextmanager
@@ -23,6 +39,9 @@ async def lifespan(app: FastAPI):
     This replaces the deprecated @app.on_event decorators.
     """
     global spark
+    global play_match_pandas
+    global determine_next_strategy_pandas
+    global get_h3_neighbors_udf # Add to global declarations
 
     # Startup event logic
     print("Application startup initiated.")
@@ -36,7 +55,111 @@ async def lifespan(app: FastAPI):
             .getOrCreate()
         spark.sparkContext.setLogLevel("ERROR") # Reduce verbosity
         print("SparkSession initialized successfully for local execution.")
-    
+
+        # --- MOVE UDF REGISTRATION HERE ---
+        # The UDF functions themselves can remain defined globally,
+        # but the line that creates the Spark UDF object must be after SparkSession creation.
+
+        # --- Helper function to get valid neighbors (Pythonic, used inside UDF) ---
+        # This function definition is fine globally, but its UDF wrapper needs Spark.
+        def get_valid_neighbors_list(center_hex: str, all_hexes: Set[str]) -> List[str]:
+            """
+            Finds neighbors of center_hex that are also in the all_hexes set.
+            Returns as a list for UDF compatibility.
+            """
+            try:
+                potential_neighbors = h3.grid_disk(center_hex, 1)
+                actual_neighbors = [neighbor for neighbor in potential_neighbors
+                                    if neighbor != center_hex and neighbor in all_hexes]
+                return actual_neighbors
+            except ValueError as e:
+                # Log or handle invalid H3 index, or return empty list
+                print(f"Warning: Invalid H3 index '{center_hex}' encountered: {e}")
+                return []
+
+        # Define the regular UDF here
+        get_h3_neighbors_udf = udf(lambda hex_id, all_hex_ids_val: get_valid_neighbors_list(hex_id, all_hex_ids_val), ArrayType(StringType()))
+
+
+        # --- UDF for Playing a Single Match (Pandas UDF) ---
+        # Define the Python function for the Pandas UDF within lifespan, or globally
+        # and then wrap it here. Defining globally is generally cleaner if it's stateless.
+        # Let's keep the core Python functions outside for readability, and wrap them here.
+        
+        # --- UDF for Playing a Single Match ---
+        # The return type for a Pandas UDF that returns a Series of tuples (or lists)
+        # is an ArrayType.
+        @pandas_udf(ArrayType(FloatType()))
+        def _play_match_pandas_internal(
+            strat_name1: pd.Series,
+            strat_name2: pd.Series,
+            rounds: pd.Series,
+            noise: pd.Series,
+            r: pd.Series, s: pd.Series, t: pd.Series, p: pd.Series
+        ) -> pd.Series:
+            results = []
+            num_rounds = rounds.iloc[0]
+            game_noise = noise.iloc[0]
+            game_r = r.iloc[0]
+            game_s = s.iloc[0]
+            game_t = t.iloc[0]
+            game_p = p.iloc[0]
+
+            game = axl.Game(r=game_r, s=game_s, t=game_t, p=game_p)
+
+            for s1_name, s2_name in zip(strat_name1, strat_name2):
+                try:
+                    player1 = stringToStrat[s1_name].clone()
+                    player2 = stringToStrat[s2_name].clone()
+                except KeyError:
+                    results.append([0.0, 0.0])
+                    continue
+
+                match = axl.Match(players=(player1, player2), turns=num_rounds, noise=game_noise, game=game)
+                try:
+                    match.play()
+                    final_scores = match.final_score()
+                    if final_scores is None:
+                        results.append([0.0, 0.0])
+                    else:
+                        results.append([float(final_scores[0]), float(final_scores[1])])
+                except Exception as e:
+                    results.append([0.0, 0.0])
+            return pd.Series(results)
+        
+        play_match_pandas = _play_match_pandas_internal # Assign to global variable
+
+
+        # --- UDF for Determining Next Strategy ---
+        @pandas_udf(StringType())
+        def _determine_next_strategy_pandas_internal(
+            center_current_strategy: pd.Series,
+            center_score: pd.Series,
+            neighbor_data: pd.Series
+        ) -> pd.Series:
+            next_strategies = []
+            for i in range(len(center_current_strategy)):
+                current_strat = center_current_strategy.iloc[i]
+                current_score = center_score.iloc[i]
+                neighbors_info = neighbor_data.iloc[i]
+
+                max_score = current_score
+                next_strategy = current_strat
+
+                if neighbors_info is not None and len(neighbors_info) > 0:
+                    for neighbor_info in neighbors_info:
+                        if neighbor_info and 'neighbor_score' in neighbor_info and neighbor_info['neighbor_score'] is not None:
+                            neighbor_strat = neighbor_info['neighbor_strategy_name']
+                            neighbor_score = float(neighbor_info['neighbor_score'])
+                            if neighbor_score > max_score:
+                                max_score = neighbor_score
+                                next_strategy = neighbor_strat
+                next_strategies.append(next_strategy)
+            return pd.Series(next_strategies)
+
+        determine_next_strategy_pandas = _determine_next_strategy_pandas_internal # Assign to global variable
+
+
     # Yield control to the application to handle requests
     yield
 
@@ -126,67 +249,6 @@ idToStrategy: idStrategyType = {
     9: ("Tit-for-tat", "blue"),
 }
 
-# --- UDF for Playing a Single Match ---
-def play_match(strat_name1: str, strat_name2: str, rounds: int, noise: float, r: float, s: float, t: float, p: float) -> Tuple[float, float]:
-    game = axl.Game(r=r, s=s, t=t, p=p)
-    try:
-        # Clone players for each match to ensure they start fresh
-        player1 = stringToStrat[strat_name1].clone()
-        player2 = stringToStrat[strat_name2].clone()
-    except KeyError:
-        # print(f"Error: Invalid strategy name encountered in UDF: {strat_name1} or {strat_name2}")
-        return (0.0, 0.0)
-
-    match = axl.Match(players=(player1, player2), turns=rounds, noise=noise, game=game)
-    try:
-        match.play()
-        final_scores = match.final_score()
-        if final_scores is None:
-            return (0.0, 0.0)
-        return (float(final_scores[0]), float(final_scores[1]))
-    except Exception as e:
-        # print(f"Error during match between {strat_name1} and {strat_name2}: {e}")
-        return (0.0, 0.0)
-
-play_match_udf = udf(play_match, ArrayType(FloatType()))
-
-# --- UDF for Determining Next Strategy ---
-def determine_next_strategy(
-    center_current_strategy: str,
-    center_score: float,
-    neighbor_data: List[Dict[str, Any]] # Spark passes Row objects which behave like dicts
-) -> str:
-    """
-    Determines the next strategy for the center_hex based on its score and
-    its neighbors' scores.
-    """
-    max_score = center_score
-    next_strategy = center_current_strategy
-
-    if neighbor_data: # Ensure there are neighbors
-        for neighbor_info in neighbor_data:
-            # Check if neighbor_info is not None (in case of outer join with no valid neighbor)
-            # and if 'neighbor_score' key exists and is not None.
-            if neighbor_info and 'neighbor_score' in neighbor_info and neighbor_info['neighbor_score'] is not None:
-                neighbor_strat = neighbor_info['neighbor_strategy_name']
-                neighbor_score = float(neighbor_info['neighbor_score']) # Ensure it's a float for comparison
-                if neighbor_score > max_score:
-                    max_score = neighbor_score
-                    next_strategy = neighbor_strat
-    return next_strategy
-
-determine_next_strategy_udf = udf(determine_next_strategy, StringType())
-
-# Define the schema for neighbor_info used within the UDF
-neighbor_info_schema = StructType([
-    StructField("neighbor_hex_id", StringType(), True),
-    StructField("neighbor_strategy_name", StringType(), True),
-    StructField("neighbor_score", FloatType(), True)
-])
-
-# Define the full ArrayType for neighbor_data
-neighbor_data_array_type = ArrayType(neighbor_info_schema)
-
 # --- API Endpoints ---
 @app.get("/")
 async def root():
@@ -259,7 +321,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
 
     match_scores_df = match_pairs_df.withColumn(
         "scores_tuple",
-        play_match_udf(
+        play_match_pandas(
             col("hex1_strategy"), col("hex2_strategy"),
             lit(rounds), lit(noise), lit(r), lit(s), lit(t), lit(p)
         )
@@ -315,7 +377,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
             col("s.hex_id").alias("hex_id"),
             col("s.current_strategy_name").alias("current_strategy_name"),
             col("s.total_score").alias("total_score"),
-            determine_next_strategy_udf(
+            determine_next_strategy_pandas(
                 col("s.current_strategy_name"),
                 col("s.total_score"),
                 # Ensure the UDF receives an empty list for hexes with no neighbors
