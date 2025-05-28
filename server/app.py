@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import axelrod as axl
 import h3
 import time
@@ -12,9 +13,41 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, udf, explode, lit, sum as spark_sum, max as spark_max, when as spark_when, coalesce, struct as spark_struct, collect_list, array as spark_array, broadcast
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType, ArrayType, LongType
 
-#### Geospatial prisoner's dilemma ####
+spark: SparkSession | None = None
 
-app = FastAPI()
+#### Geospatial prisoner's dilemma ####
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Manages the lifespan of the FastAPI application, handling startup and shutdown events.
+    This replaces the deprecated @app.on_event decorators.
+    """
+    global spark
+
+    # Startup event logic
+    print("Application startup initiated.")
+    if spark is None:
+        spark = SparkSession.builder \
+            .appName("GeospatialPrisonersDilemma") \
+            .config("spark.driver.memory", "4g") \
+            .config("spark.executor.memory", "4g") \
+            .config("spark.sql.shuffle.partitions", "50") \
+            .master("local[15]") \
+            .getOrCreate()
+        spark.sparkContext.setLogLevel("ERROR") # Reduce verbosity
+        print("SparkSession initialized successfully for local execution.")
+    
+    # Yield control to the application to handle requests
+    yield
+
+    # Shutdown event logic
+    print("Application shutdown initiated.")
+    if spark is not None:
+        spark.stop()
+        print("SparkSession stopped.")
+
+# Initialize FastAPI app with the lifespan context manager
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,34 +56,6 @@ app.add_middleware(
     allow_methods=["*"], # Allows all methods
     allow_headers=["*"], # Allows all headers
 )
-
-# --- Spark Session Initialization ---
-# This should be managed carefully in a production FastAPI app.
-# A common pattern is to initialize it once on startup.
-spark: Any = None
-
-# In your app.py/main.py
-@app.on_event("startup")
-async def startup_event():
-    """Initializes SparkSession on application startup (for local execution)."""
-    global spark
-    if spark is None:
-        spark = SparkSession.builder \
-            .appName("GeospatialPrisonersDilemma") \
-            .config("spark.driver.memory", "4g") \
-            .config("spark.executor.memory", "4g") \
-            .master("local[10]") \
-            .getOrCreate()
-        spark.sparkContext.setLogLevel("ERROR") # Reduce verbosity
-        print("SparkSession initialized successfully for local execution.")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Stops SparkSession on application shutdown."""
-    global spark
-    if spark is not None:
-        spark.stop()
-        print("SparkSession stopped.")
 
 # --- Helper function to get valid neighbors (Pythonic, used inside UDF) ---
 def get_valid_neighbors_list(center_hex: str, all_hexes: Set[str]) -> List[str]:
@@ -129,7 +134,7 @@ def play_match(strat_name1: str, strat_name2: str, rounds: int, noise: float, r:
         player1 = stringToStrat[strat_name1].clone()
         player2 = stringToStrat[strat_name2].clone()
     except KeyError:
-        print(f"Error: Invalid strategy name encountered in UDF: {strat_name1} or {strat_name2}")
+        # print(f"Error: Invalid strategy name encountered in UDF: {strat_name1} or {strat_name2}")
         return (0.0, 0.0)
 
     match = axl.Match(players=(player1, player2), turns=rounds, noise=noise, game=game)
@@ -140,7 +145,7 @@ def play_match(strat_name1: str, strat_name2: str, rounds: int, noise: float, r:
             return (0.0, 0.0)
         return (float(final_scores[0]), float(final_scores[1]))
     except Exception as e:
-        print(f"Error during match between {strat_name1} and {strat_name2}: {e}")
+        # print(f"Error during match between {strat_name1} and {strat_name2}: {e}")
         return (0.0, 0.0)
 
 play_match_udf = udf(play_match, ArrayType(FloatType()))
@@ -224,7 +229,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
 
     # --- Create initial DataFrame ---
     # Schema: hex_id, current_strategy_name
-    hex_df = spark.createDataFrame(initial_hex_data, ["hex_id", "current_strategy_name"]).cache() # Cache small hex_df
+    hex_df = spark.createDataFrame(initial_hex_data, ["hex_id", "current_strategy_name"]).cache()
 
     # Broadcast all hex IDs as a set for efficient neighbor lookup within UDFs
     all_hex_ids_set = set(hexToStrategyID.keys())
@@ -233,23 +238,25 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
     # UDF to get direct neighbors for a hex
     get_h3_neighbors_udf = udf(lambda hex_id: get_valid_neighbors_list(hex_id, all_hex_ids_broadcast.value), ArrayType(StringType()))
 
-    # 1. Expand neighbors for each hex
-    hex_with_neighbors_exploded_df = hex_df.withColumn("neighbor_hex_id", explode(get_h3_neighbors_udf(col("hex_id"))))
+    # --- 1. Generate all (hex, neighbor) pairs ---
+    # This exploded DataFrame contains each hex and its valid neighbors within the grid.
+    hex_and_its_neighbors_df = hex_df.withColumn(
+        "neighbor_hex_id", explode(get_h3_neighbors_udf(col("hex_id")))
+    ).cache() # Cache for reuse in both match pairing and neighbor aggregation
 
-    # 2. Join the exploded DataFrame with itself to get strategies for both `hex_id` and `neighbor_hex_id`
-    # Use aliases and BROADCAST hint for the `hex_df` as it's typically smaller than `hex_with_neighbors_exploded_df`
-    match_pairs_df = hex_with_neighbors_exploded_df.alias("n") \
-        .join(broadcast(hex_df.alias("s")), col("n.neighbor_hex_id") == col("s.hex_id"), "inner") \
+    # --- 2. Play Matches and Calculate Scores ---
+    # Join the exploded DataFrame with itself to get strategies for both `hex_id` and `neighbor_hex_id`
+    # Filter to ensure each pair is processed only once (e.g., A-B, not B-A)
+    match_pairs_df = hex_and_its_neighbors_df.alias("h1") \
+        .join(hex_df.alias("h2"), col("h1.neighbor_hex_id") == col("h2.hex_id"), "inner") \
+        .filter(col("h1.hex_id") < col("h2.hex_id")) \
         .select(
-            col("n.hex_id").alias("hex1_id"),
-            col("n.current_strategy_name").alias("hex1_strategy"),
-            col("s.hex_id").alias("hex2_id"),
-            col("s.current_strategy_name").alias("hex2_strategy")
-        ) \
-        .filter(col("hex1_id") < col("hex2_id")) \
-        .cache() # Cache match pairs before playing matches
+            col("h1.hex_id").alias("hex1_id"),
+            col("h1.current_strategy_name").alias("hex1_strategy"),
+            col("h2.hex_id").alias("hex2_id"),
+            col("h2.current_strategy_name").alias("hex2_strategy")
+        ).cache() # Cache match pairs before playing matches
 
-    # --- Play Matches and Calculate Scores ---
     match_scores_df = match_pairs_df.withColumn(
         "scores_tuple",
         play_match_udf(
@@ -272,41 +279,38 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
     # Aggregate total scores per hex
     total_scores_df = hex_scores_df.groupBy("hex_id").agg(spark_sum("score").alias("total_score")).cache()
 
-    # --- Determine Strategy Updates ---
+    # --- 3. Determine Strategy Updates ---
     # Join total scores back to the original hex DataFrame to get current strategies and scores
-    hex_with_scores_df = hex_df.join(total_scores_df, "hex_id", "left_outer") \
-                               .na.fill(0.0, subset=["total_score"]) \
-                               .cache() # Cache this base DF for the next steps
+    hex_with_current_scores_df = hex_df.join(total_scores_df, "hex_id", "left_outer") \
+                                     .na.fill(0.0, subset=["total_score"]) \
+                                     .cache() # This DF contains (hex_id, current_strat, current_score)
 
-    # Prepare a DataFrame of (center_hex_id, neighbor_hex_id) for gathering neighbor details
-    neighbor_connections_df = hex_df.withColumn("neighbor_hex_id", explode(get_h3_neighbors_udf(col("hex_id")))) \
-                                    .select(col("hex_id").alias("center_hex_id"), col("neighbor_hex_id"))
-
-    # Join `hex_with_scores_df` (aliased as 'n' for neighbors) to `neighbor_connections_df`
-    # Use BROADCAST hint here as hex_with_scores_df should be relatively small
-    hex_with_neighbor_details_for_udf_df = neighbor_connections_df.alias("c") \
-        .join(broadcast(hex_with_scores_df.alias("n")), col("c.neighbor_hex_id") == col("n.hex_id"), "left_outer") \
+    # Re-use hex_and_its_neighbors_df to get connections and then join with hex_with_current_scores_df
+    # to get details of neighbors (their hex_id, strategy, and score).
+    neighbor_details_df = hex_and_its_neighbors_df.alias("center_hex") \
+        .join(broadcast(hex_with_current_scores_df.alias("neighbor_hex")), # Broadcast smaller hex_with_current_scores_df
+              col("center_hex.neighbor_hex_id") == col("neighbor_hex.hex_id"),
+              "left_outer") \
         .select(
-            col("c.center_hex_id").alias("hex_id"), # This is the main hex for which we are calculating
+            col("center_hex.hex_id").alias("hex_id"), # This is the hex we are determining the strategy for
             spark_struct(
-                col("n.hex_id").alias("neighbor_hex_id"),
-                col("n.current_strategy_name").alias("neighbor_strategy_name"),
-                coalesce(col("n.total_score"), lit(0.0)).alias("neighbor_score") # Coalesce for outer join
+                col("neighbor_hex.hex_id").alias("neighbor_hex_id"),
+                col("neighbor_hex.current_strategy_name").alias("neighbor_strategy_name"),
+                coalesce(col("neighbor_hex.total_score"), lit(0.0)).alias("neighbor_score") # Coalesce for outer join
             ).alias("neighbor_info")
         )
-
+    
     # Group by `hex_id` and collect all neighbor information into a list
-    collected_neighbor_info_df = hex_with_neighbor_details_for_udf_df \
+    # The `neighbor_data_array_type` ensures correct schema for the collected list for the UDF.
+    collected_neighbor_info_df = neighbor_details_df \
         .groupBy("hex_id") \
-        .agg(collect_list("neighbor_info").alias("neighbor_data"))
+        .agg(collect_list("neighbor_info").alias("neighbor_data").cast(neighbor_data_array_type)) \
+        .cache() # Cache before final join
 
-    # Now, join the `hex_with_scores_df` (aliased as 's' which has the current hex's score and strategy)
-    # with the `collected_neighbor_info_df` (aliased as 'n' for neighbor data)
-    # to apply the `determine_next_strategy_udf`.
-    # Use BROADCAST hint here too, as `collected_neighbor_info_df` might be larger if many hexes have many neighbors
-    # but `hex_with_scores_df` is the base.
-    final_update_df = hex_with_scores_df.alias("s") \
-        .join(broadcast(collected_neighbor_info_df.alias("n")), col("s.hex_id") == col("n.hex_id"), "left_outer") \
+    # Now, join the `hex_with_current_scores_df` (which has the current hex's score and strategy)
+    # with the `collected_neighbor_info_df` (which has the aggregated neighbor data).
+    final_update_df = hex_with_current_scores_df.alias("s") \
+        .join(collected_neighbor_info_df.alias("n"), col("s.hex_id") == col("n.hex_id"), "left_outer") \
         .select(
             col("s.hex_id").alias("hex_id"),
             col("s.current_strategy_name").alias("current_strategy_name"),
@@ -315,6 +319,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
                 col("s.current_strategy_name"),
                 col("s.total_score"),
                 # Ensure the UDF receives an empty list for hexes with no neighbors
+                # or no valid neighbor data from the join
                 coalesce(col("n.neighbor_data"), lit(spark_array()).cast(neighbor_data_array_type))
             ).alias("updated_strategy")
         )
@@ -335,11 +340,13 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
 
     # --- Unpersist cached DataFrames ---
     hex_df.unpersist()
+    hex_and_its_neighbors_df.unpersist()
     match_pairs_df.unpersist()
     match_scores_df.unpersist()
-    hex_scores_df.unpersist() # Although intermediate, unpersisting is good practice
+    # hex_scores_df is intermediate, unpersisting is good practice if it was cached, but it's not explicitly cached here.
     total_scores_df.unpersist()
-    hex_with_scores_df.unpersist()
+    hex_with_current_scores_df.unpersist()
+    collected_neighbor_info_df.unpersist()
     final_update_df.unpersist()
 
     end_time = time.time() # End timing
