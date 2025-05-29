@@ -1,8 +1,11 @@
 from contextlib import asynccontextmanager
+import tempfile
 import axelrod as axl
 import h3
 import time
 import pandas as pd
+import geopandas as gpd
+import geojson
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Any, Callable, Dict, Set, Tuple, FrozenSet, cast, List
@@ -20,6 +23,7 @@ from pyspark.sql.types import (
     StructType, StructField, StringType, IntegerType,
     FloatType, ArrayType, LongType
 )
+import shapely
 
 # Global SparkSession, initialized in lifespan
 spark: SparkSession | None = None
@@ -40,6 +44,10 @@ NEIGHBOR_INFO_SCHEMA = StructType([
 
 # Schema for the array of neighbor data passed to the determine_next_strategy UDF
 NEIGHBOR_DATA_ARRAY_TYPE = ArrayType(NEIGHBOR_INFO_SCHEMA)
+
+# Load river from disk
+rivers = gpd.read_file("PL.PZGiK.330.1401__OT_SWRS_L.gml")
+target_crs = rivers.crs or "EPSG:4326"
 
 #### Geospatial Prisoner's Dilemma ####
 
@@ -234,6 +242,24 @@ async def root():
 async def strategies() -> StrategyIdMapType:
     """ Returns the available strategies with their names and suggested colors. """
     return id_to_strategy_info
+
+@app.post("/river_cells")
+async def river_cells(hexagons: List[str]) -> List[str]:
+    """ Returns the river cells in the hexagons. """
+    hex_ids = []
+
+    for hex_id in hexagons:
+        hex_poly = h3.cell_to_boundary(hex_id)
+        lat_lng_poly = tuple(tuple(reversed(p)) for p in hex_poly)
+        polygon = shapely.geometry.Polygon(lat_lng_poly)
+        polygon_series = gpd.GeoSeries(polygon, crs="EPSG:4326").to_crs(target_crs)
+        polygon_frame = gpd.GeoDataFrame(geometry=polygon_series)
+
+        intersects_rivers_series = polygon_frame.geometry.iloc[0].intersects(rivers.geometry)
+
+        if not intersects_rivers_series.any():
+            hex_ids.append(hex_id)
+    return hex_ids
 
 @app.post("/game_step")
 async def game_step(

@@ -3,3 +3,6 @@ fastapi[standard]
 h3
 pyspark
 uvicorn
+geopandas
+geojson
+shapely
