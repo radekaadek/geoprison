@@ -24,6 +24,8 @@
   let currentStep = 0
   // Whether the strategies have been loaded from the server
   let loadedStrategies = false
+  let riversOn = false
+  $: console.log(riversOn)
 
   // Axelrod payoff matrix
   let r = 3
@@ -238,14 +240,36 @@
   }
 
   // poly is a polygon geojson
-  function editPolygon(poly: any) {
+  async function editPolygon(poly: any) {
     removeHexagons()
     selectedPolygonGeoJSON = poly
     if (!selectedPolygonGeoJSON) {
       return
     }
     const polygon = poly.features[0].geometry.coordinates
-    const hexagons = polygonToCells(polygon, hexLevel)
+    let hexagons = polygonToCells(polygon, hexLevel)
+    if (riversOn) {
+      const riverPolygons = fetch(`${serverURL}/river_cells`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(hexagons),
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => data)
+        .catch(error => {
+          console.error('Error:', error);
+          alert(`Could not get river polygons from the server.\nPlease check that the server is running and try again.`)
+          return
+        })
+      hexagons = await riverPolygons
+    }
     const boundaries = hexagons.map(c => cellToBoundary(c, true))
     idToStrategy = new Map(hexagons.map((hex, i) => [hex, defaultStrategy]));
     updatePolys()
@@ -639,6 +663,12 @@
     <Slider label="Hex Level" min={0} max={15} step={1} bind:value={hexLevel} {map} />
     <Slider label="Rounds" min={1} max={50} step={1} bind:value={numberOfRounds} {map} />
     <Slider label="Number of Steps to Generate" min={1} max={200} step={1} bind:value={numberOfSteps} {map} />
+    <form class="rivers">
+      <input type="radio" id="rivers" name="rivers" value="on" bind:group={riversOn}>
+      <label for="rivers">Rivers</label>
+      <input type="radio" id="noRivers" name="rivers" value="off" bind:group={riversOn}>
+      <label for="noRivers">No Rivers</label>
+    </form>
     <div class="saveLoad">
       <button on:click={() => saveGame()}>Save Game State</button>
       <button on:click={() => loadGame()}>Load Game State</button>
@@ -674,6 +704,10 @@
     z-index: 1001;
     white-space: nowrap; /* Prevent text wrapping */
     padding: 0.2rem;
+  }
+
+  .rivers {
+    background-color: #add8e6;
   }
 
   /* Show the dropdown menu on hover */
@@ -716,7 +750,7 @@
   #controls {
     position: absolute;
     left: 0%;
-    top: 17%;
+    top: 15%;
     width: 12%;
     /*transform: translateY(-50%);*/
     font-size: 1rem; /* Large text */

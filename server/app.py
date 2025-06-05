@@ -1,27 +1,23 @@
 from contextlib import asynccontextmanager
-import tempfile
 import axelrod as axl
 import h3
 import time
 import pandas as pd
 import geopandas as gpd
-import geojson
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Any, Callable, Dict, Set, Tuple, FrozenSet, cast, List
-from collections import defaultdict
-from functools import lru_cache
+from typing import Callable, Dict, Set, Tuple, List
 
 # --- PySpark Imports ---
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col, pandas_udf, udf, explode, lit, sum as spark_sum,
-    max as spark_max, when as spark_when, coalesce, struct as spark_struct,
+    when as spark_when, coalesce, struct as spark_struct,
     collect_list, array as spark_array, broadcast
 )
 from pyspark.sql.types import (
     StructType, StructField, StringType, IntegerType,
-    FloatType, ArrayType, LongType
+    FloatType, ArrayType
 )
 import shapely
 
@@ -246,24 +242,41 @@ async def strategies() -> StrategyIdMapType:
 @app.post("/river_cells")
 async def river_cells(hexagons: List[str]) -> List[str]:
     """ Returns the river cells in the hexagons. """
-    hex_ids = []
+    hex_ids_without_rivers = [] # Renamed for clarity
 
     for hex_id in hexagons:
-        hex_poly = h3.cell_to_boundary(hex_id)
-        lat_lng_poly = tuple(tuple(reversed(p)) for p in hex_poly)
-        polygon = shapely.geometry.Polygon(lat_lng_poly)
-        polygon_series = gpd.GeoSeries(polygon, crs="EPSG:4326").to_crs(target_crs)
+        # Get the boundary of the H3 hexagon
+        hex_poly_h3 = h3.cell_to_boundary(hex_id) # h3 returns (lat, lon)
+
+        # Convert H3 boundary (lat, lon) to (lon, lat) for Shapely
+        # Shapely expects (x, y) which is (lon, lat)
+        lon_lat_poly = tuple(p for p in hex_poly_h3) 
+        
+        # Create a Shapely Polygon
+        polygon = shapely.geometry.Polygon(lon_lat_poly)
+        
+        # Create a GeoDataFrame for the current hexagon
+        # Input CRS for H3 cells is WGS84 (EPSG:4326)
+        polygon_series = gpd.GeoSeries([polygon], crs="EPSG:4326").to_crs(target_crs)
         polygon_frame = gpd.GeoDataFrame(geometry=polygon_series)
 
-        intersects_rivers_series = polygon_frame.geometry.iloc[0].intersects(rivers.geometry)
+        # Check if the current hexagon's geometry intersects with any of the river geometries
+        # rivers.geometry.intersects(...) returns a boolean Series, 
+        # one boolean per river in the 'rivers' GeoDataFrame.
+        intersects_rivers_series = rivers.geometry.intersects(polygon_frame.geometry.iloc[0])
 
+        # .any() checks if any value in the intersects_rivers_series is True.
+        # If True, it means the hexagon intersects with at least one river.
+        # 'not intersects_rivers_series.any()' will be True if there are NO intersections.
         if not intersects_rivers_series.any():
-            hex_ids.append(hex_id)
-    return hex_ids
+            # If the hexagon does not intersect with any rivers, add its ID to the list.
+            hex_ids_without_rivers.append(hex_id)
+            
+    return hex_ids_without_rivers
 
 @app.post("/game_step")
 async def game_step(
-    hex_to_strategy_id_map: Dict[str, int],
+    hex_to_strategy_id_map: dict[str, int],
     rounds: int = 15,
     noise: float = 0.0,
     r_payoff: float = 3, # Reward for mutual cooperation
