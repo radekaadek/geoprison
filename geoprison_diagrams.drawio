@@ -134,7 +134,7 @@
         <mxCell id="GIuxkB_nh06wqcdbbJOn-90" value="" style="endArrow=none;dashed=1;html=1;rounded=0;" edge="1" parent="1">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
             <mxPoint x="185" y="790" as="sourcePoint" />
-            <mxPoint x="184.70999999999998" y="580" as="targetPoint" />
+            <mxPoint x="185" y="570" as="targetPoint" />
           </mxGeometry>
         </mxCell>
         <mxCell id="GIuxkB_nh06wqcdbbJOn-92" value="" style="html=1;points=[[0,0,0,0,5],[0,1,0,0,-5],[1,0,0,0,5],[1,1,0,0,-5]];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;curved&quot;:0,&quot;rounded&quot;:0};" vertex="1" parent="1">
