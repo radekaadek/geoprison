@@ -24,8 +24,8 @@
   let currentStep = 0
   // Whether the strategies have been loaded from the server
   let loadedStrategies = false
-  let riversOn = false
-  $: console.log(riversOn)
+  let barriersOn = false
+  $: console.log(barriersOn)
 
   // Axelrod payoff matrix
   let r = 3
@@ -248,7 +248,7 @@
     }
     const polygon = poly.features[0].geometry.coordinates
     let hexagons = polygonToCells(polygon, hexLevel)
-    if (riversOn) {
+    if (barriersOn) {
       const riverPolygons = fetch(`${serverURL}/river_cells`, {
         method: 'POST',
         headers: {
@@ -663,11 +663,11 @@
     <Slider label="Hex Level" min={0} max={15} step={1} bind:value={hexLevel} {map} />
     <Slider label="Rounds" min={1} max={50} step={1} bind:value={numberOfRounds} {map} />
     <Slider label="Number of Steps to Generate" min={1} max={200} step={1} bind:value={numberOfSteps} {map} />
-    <form class="rivers">
-      <input type="radio" id="rivers" name="rivers" value="on" bind:group={riversOn}>
-      <label for="rivers">Rivers</label>
-      <input type="radio" id="noRivers" name="rivers" value="off" bind:group={riversOn}>
-      <label for="noRivers">No Rivers</label>
+    <form class="barriers">
+      <input type="radio" id="barriers" name="barriers" value="on" bind:group={barriersOn}>
+      <label for="barriers">Barriers ON</label>
+      <input type="radio" id="nobarriers" name="barriers" value="off" bind:group={barriersOn}>
+      <label for="nobarriers">Barriers OFF</label>
     </form>
     <div class="saveLoad">
       <button on:click={() => saveGame()}>Save Game State</button>
@@ -706,7 +706,7 @@
     padding: 0.2rem;
   }
 
-  .rivers {
+  .barriers {
     background-color: #add8e6;
   }
 
