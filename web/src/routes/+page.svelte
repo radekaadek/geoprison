@@ -24,7 +24,7 @@
   let currentStep = 0
   // Whether the strategies have been loaded from the server
   let loadedStrategies = false
-  let barriersOn = false
+  let barriersOn = "off"
   $: console.log(barriersOn)
 
   // Axelrod payoff matrix
@@ -248,7 +248,7 @@
     }
     const polygon = poly.features[0].geometry.coordinates
     let hexagons = polygonToCells(polygon, hexLevel)
-    if (barriersOn) {
+    if (barriersOn === "on") {
       const riverPolygons = fetch(`${serverURL}/river_cells`, {
         method: 'POST',
         headers: {
