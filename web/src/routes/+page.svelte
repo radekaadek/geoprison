@@ -25,7 +25,7 @@
   // Whether the strategies have been loaded from the server
   let loadedStrategies = false
   let barriersOn = "off"
-  $: console.log(barriersOn)
+  $: selectedPolygonGeoJSON, barriersOn, editPolygon(selectedPolygonGeoJSON)
 
   // Axelrod payoff matrix
   let r = 3
@@ -90,6 +90,7 @@
     obj["T"] = t
     obj["P"] = p
     obj["noise"] = noise
+    obj["barriers"] = barriersOn
     const strategiesString = JSON.stringify(obj)
     const blob = new Blob([strategiesString], {type: "application/json"});
     const url = URL.createObjectURL(blob);
@@ -122,6 +123,7 @@
         const newS = strategies["S"]
         const newT = strategies["T"]
         const newP = strategies["P"]
+        const newBarriers = strategies["barriers"]
         idToStrategy = new Map(Object.entries(newStrategiesObj))
         numberOfRounds = newNumberOfRounds
         hexLevel = newHexLevel
@@ -131,7 +133,7 @@
         t = newT
         p = newP
         noise = newNoise
-        console.log(idToStrategy)
+        barriersOn = newBarriers
         updatePolys()
         showStartGameButton = true
       };
@@ -240,8 +242,8 @@
   }
 
   // poly is a polygon geojson
+  // Redraws stuff
   async function editPolygon(poly: any) {
-    removeHexagons()
     selectedPolygonGeoJSON = poly
     if (!selectedPolygonGeoJSON) {
       return
@@ -249,7 +251,7 @@
     const polygon = poly.features[0].geometry.coordinates
     let hexagons = polygonToCells(polygon, hexLevel)
     if (barriersOn === "on") {
-      const riverPolygons = fetch(`${serverURL}/river_cells`, {
+      const barrierPolygons = fetch(`${serverURL}/barrier_cells`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -265,11 +267,12 @@
         .then(data => data)
         .catch(error => {
           console.error('Error:', error);
-          alert(`Could not get river polygons from the server.\nPlease check that the server is running and try again.`)
+          alert(`Could not get barrier polygons from the server.\nPlease check that the server is running and try again.`)
           return
         })
-      hexagons = await riverPolygons
+      hexagons = await barrierPolygons
     }
+    removeHexagons()
     const boundaries = hexagons.map(c => cellToBoundary(c, true))
     idToStrategy = new Map(hexagons.map((hex, i) => [hex, defaultStrategy]));
     updatePolys()
