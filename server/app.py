@@ -25,8 +25,8 @@ import shapely
 spark: SparkSession | None = None
 
 # Global UDF variables, assigned in lifespan (for UDFs that don't change per request)
-play_match_pandas_udf: Callable | None = None
-determine_next_strategy_pandas_udf: Callable | None = None
+play_match_pandas_udf: Callable[[str, str, int, float, float, float, float, float], pd.Series] | None = None
+determine_next_strategy_pandas_udf: Callable[[str, float, pd.Series], pd.Series] | None = None
 # get_h3_neighbors_udf is defined locally within game_step for each request
 # to correctly capture broadcast variables specific to that request.
 
@@ -41,9 +41,9 @@ NEIGHBOR_INFO_SCHEMA = StructType([
 # Schema for the array of neighbor data passed to the determine_next_strategy UDF
 NEIGHBOR_DATA_ARRAY_TYPE = ArrayType(NEIGHBOR_INFO_SCHEMA)
 
-# Load river from disk
-rivers = gpd.read_file("PL.PZGiK.330.1401__OT_SWRS_L.gml")
-target_crs = rivers.crs or "EPSG:4326"
+# Load barrier from disk
+barriers = gpd.read_file("PL.PZGiK.330.1401__OT_SWRS_L.gml")
+target_crs = barriers.crs or "EPSG:4326"
 
 #### Geospatial Prisoner's Dilemma ####
 
@@ -239,10 +239,10 @@ async def strategies() -> StrategyIdMapType:
     """ Returns the available strategies with their names and suggested colors. """
     return id_to_strategy_info
 
-@app.post("/river_cells")
-async def river_cells(hexagons: List[str]) -> List[str]:
-    """ Returns the river cells in the hexagons. """
-    hex_ids_without_rivers = [] # Renamed for clarity
+@app.post("/barrier_cells")
+async def barrier_cells(hexagons: List[str]) -> List[str]:
+    """ Returns the barrier cells in the hexagons. """
+    hex_ids_without_barriers = [] # Renamed for clarity
 
     for hex_id in hexagons:
         # Get the boundary of the H3 hexagon
@@ -260,19 +260,19 @@ async def river_cells(hexagons: List[str]) -> List[str]:
         polygon_series = gpd.GeoSeries([polygon], crs="EPSG:4326").to_crs(target_crs)
         polygon_frame = gpd.GeoDataFrame(geometry=polygon_series)
 
-        # Check if the current hexagon's geometry intersects with any of the river geometries
-        # rivers.geometry.intersects(...) returns a boolean Series, 
-        # one boolean per river in the 'rivers' GeoDataFrame.
-        intersects_rivers_series = rivers.geometry.intersects(polygon_frame.geometry.iloc[0])
+        # Check if the current hexagon's geometry intersects with any of the barrier geometries
+        # barriers.geometry.intersects(...) returns a boolean Series, 
+        # one boolean per barrier in the 'barriers' GeoDataFrame.
+        intersects_barriers_series = barriers.geometry.intersects(polygon_frame.geometry.iloc[0])
 
-        # .any() checks if any value in the intersects_rivers_series is True.
-        # If True, it means the hexagon intersects with at least one river.
-        # 'not intersects_rivers_series.any()' will be True if there are NO intersections.
-        if not intersects_rivers_series.any():
-            # If the hexagon does not intersect with any rivers, add its ID to the list.
-            hex_ids_without_rivers.append(hex_id)
+        # .any() checks if any value in the intersects_barriers_series is True.
+        # If True, it means the hexagon intersects with at least one barrier.
+        # 'not intersects_barriers_series.any()' will be True if there are NO intersections.
+        if not intersects_barriers_series.any():
+            # If the hexagon does not intersect with any barriers, add its ID to the list.
+            hex_ids_without_barriers.append(hex_id)
             
-    return hex_ids_without_rivers
+    return hex_ids_without_barriers
 
 @app.post("/game_step")
 async def game_step(
