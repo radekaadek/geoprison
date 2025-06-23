@@ -156,9 +156,6 @@ async def lifespan(app: FastAPI):
             return pd.Series(next_strategies)
 
         determine_next_strategy_pandas_udf = _determine_next_strategy_pandas_internal
-    
-    # call game step once so that the UDFs are initialized and spark is optimized
-    _ = await game_step(hex_to_strategy_id_map={"81743ffffffffff": 4}, rounds=1, noise=0.0, r_payoff=0.0, s_payoff=0.0, t_payoff=0.0, p_payoff=0.0)
 
     yield # FastAPI app runs after this point
 

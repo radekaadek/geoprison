@@ -112,6 +112,8 @@ def visualize_strategies_per_round(states_data):
 with open('states.json') as f:
     sample_states_data = json.load(f)['states']
 
+print(f"Number of players: {len(sample_states_data[0])}")
+
 # If your data is in a string format, you might need to parse it first:
 # data_string = '{"states": [{"84525c9ffffffff":{"strategy":"Forgiving Tit-for-Tat","score":0}, ... }]}'
 # parsed_data = json.loads(data_string)
