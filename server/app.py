@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):
                 match = axl.Match(players=(player1, player2), turns=num_rounds_val, noise=game_noise_val, game=game)
                 try:
                     match.play()
-                    final_scores = match.final_score_per_turn() # Average score per turn
+                    final_scores = match.final_score()
                     if final_scores is None: # Should not happen if match played
                         results.append([0.0, 0.0])
                     else:
