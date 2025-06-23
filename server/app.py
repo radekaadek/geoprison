@@ -6,7 +6,7 @@ import pandas as pd
 import geopandas as gpd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Callable, Dict, Set, Tuple, List
+from typing import Callable
 
 # --- PySpark Imports ---
 from pyspark.sql import SparkSession
@@ -157,6 +157,9 @@ async def lifespan(app: FastAPI):
 
         determine_next_strategy_pandas_udf = _determine_next_strategy_pandas_internal
     
+    # call game step once so that the UDFs are initialized and spark is optimized
+    _ = await game_step(hex_to_strategy_id_map={"81743ffffffffff": 4}, rounds=1, noise=0.0, r_payoff=0.0, s_payoff=0.0, t_payoff=0.0, p_payoff=0.0)
+
     yield # FastAPI app runs after this point
 
     # --- Shutdown ---
@@ -178,7 +181,7 @@ app.add_middleware(
 )
 
 # --- Python Helper Function for H3 Neighbors (used inside a Spark UDF) ---
-def get_valid_neighbors_list(center_hex: str, all_participating_hexes: Set[str]) -> List[str]:
+def get_valid_neighbors_list(center_hex: str, all_participating_hexes: set[str]) -> list[str]:
     """
     Finds H3 k-ring neighbors (ring 1) of center_hex that are also present
     in the set of all_participating_hexes.
@@ -198,7 +201,7 @@ def get_valid_neighbors_list(center_hex: str, all_participating_hexes: Set[str])
 
 # --- Strategy Definitions ---
 # Maps strategy names to their Axelrod library class instances.
-string_to_strategy_object: Dict[str, axl.Player] = {
+string_to_strategy_object: dict[str, axl.Player] = {
     'Tit-for-Tat': axl.TitForTat(),
     'Random': axl.Random(),
     'Harrington': axl.SecondByHarrington(), # Axelrod's name for a strategy similar to Tit-for-2-Tats
@@ -212,7 +215,7 @@ string_to_strategy_object: Dict[str, axl.Player] = {
 }
 
 # Type alias for strategy ID mapping
-StrategyIdMapType = Dict[int, Tuple[str, str]]
+StrategyIdMapType = dict[int, tuple[str, str]]
 
 # Maps integer IDs (from frontend/API) to strategy names and display colors.
 id_to_strategy_info: StrategyIdMapType = {
@@ -240,7 +243,7 @@ async def strategies() -> StrategyIdMapType:
     return id_to_strategy_info
 
 @app.post("/barrier_cells")
-async def barrier_cells(hexagons: List[str]) -> List[str]:
+async def barrier_cells(hexagons: list[str]) -> list[str]:
     """ Returns the barrier cells in the hexagons. """
     hex_ids_without_barriers = [] # Renamed for clarity
 
@@ -333,7 +336,7 @@ async def game_step(
     # --- Define UDF for finding neighbors (locally to capture broadcast) ---
     # This UDF uses the broadcasted set of all hexes to find valid neighbors.
     @udf(ArrayType(StringType()))
-    def get_h3_valid_neighbors_udf(center_hex_id_str: str) -> List[str]:
+    def get_h3_valid_neighbors_udf(center_hex_id_str: str) -> list[str]:
         return get_valid_neighbors_list(center_hex_id_str, all_hex_ids_broadcast.value)
 
     # --- 2. Identify All Hex-Neighbor Pairs ---
@@ -479,7 +482,7 @@ async def game_step(
     # Collect updated strategies: (hex_id, updated_strategy_name)
     # .collect() brings data to the driver; be mindful of very large grids.
     updated_strategies_list = final_updated_grid_df.select("hex_id", "updated_strategy_name").collect()
-    updated_strategies_output_map: Dict[str, str] = {
+    updated_strategies_output_map: dict[str, str] = {
         row.hex_id: row.updated_strategy_name for row in updated_strategies_list
     }
 
@@ -489,21 +492,21 @@ async def game_step(
         "hex_id",
         col("total_accumulated_score").cast(IntegerType()).alias("final_score_int")
     ).collect()
-    scores_output_map: Dict[str, int] = {
+    scores_output_map: dict[str, int] = {
         row.hex_id: row.final_score_int for row in scores_list
     }
 
     # --- 8. Clean Up: Unpersist Cached DataFrames ---
-    current_grid_state_df.unpersist()
-    hex_with_its_neighbors_df.unpersist()
-    match_pairs_for_game_df.unpersist()
-    match_results_df.unpersist()
+    _ = current_grid_state_df.unpersist()
+    _ = hex_with_its_neighbors_df.unpersist()
+    _ = match_pairs_for_game_df.unpersist()
+    _ = match_results_df.unpersist()
     # all_individual_scores_df is intermediate and not explicitly cached
-    total_scores_per_hex_df.unpersist()
-    grid_with_current_scores_df.unpersist()
-    aggregated_neighbor_data_df.unpersist()
-    final_updated_grid_df.unpersist()
-    all_hex_ids_broadcast.unpersist() # Clean up broadcast variable
+    _ = total_scores_per_hex_df.unpersist()
+    _ = grid_with_current_scores_df.unpersist()
+    _ = aggregated_neighbor_data_df.unpersist()
+    _ = final_updated_grid_df.unpersist()
+    _ = all_hex_ids_broadcast.unpersist() # Clean up broadcast variable
 
     end_time_simulation = time.time()
     print(f"Game step simulation completed in {end_time_simulation - start_time_simulation:.2f} seconds.")

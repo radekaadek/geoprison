@@ -6,3 +6,5 @@ uvicorn
 geopandas
 geojson
 shapely
+seaborn
+matplotlib

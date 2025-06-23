@@ -141,6 +141,20 @@
     input.click();
   }
 
+  const saveResults = () => {
+    const states = gameStates.map(state => Object.fromEntries(state))
+    const obj = Object.fromEntries(new Map())
+    obj["states"] = states
+    const statesString = JSON.stringify(obj)
+    const blob = new Blob([statesString], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "states.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // removes all layers except the basemap
   function removeAllLayers() {
     for(; Object.keys(map._layers).length > 1;) {
@@ -680,6 +694,9 @@
 {:else}
   <div id="controls">
     <Slider label="Current Step" min={0} max={numberOfSteps} step={1} bind:value={currentStep} {map} />
+    <div class="saveLoad">
+      <button on:click={() => saveResults()}>Save Results</button>
+    </div>
   </div>
 {/if}
 
