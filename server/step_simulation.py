@@ -89,5 +89,7 @@ if __name__ == "__main__":
     else:
         print(f"Error: The provided path '{log_directory_input}' is not a valid directory.")
 
+    # make the first word an integer and sort the list by that, then sort alphabetically if the numbers are the same
+    log_files_to_process.sort(key=lambda x: int(x.split('/')[1].split()[0]))
     plot_simulation_times(log_files_to_process)
 
