@@ -59,7 +59,7 @@ def plot_simulation_times(log_file_paths):
     plt.xlabel('Step Number')
     plt.ylabel('Time Taken (seconds)')
     plt.grid(True, linestyle='--', alpha=0.7)
-    plt.legend(title="Log Files") # Add a legend to differentiate lines
+    plt.legend(title="Konfiguracja") # Add a legend to differentiate lines
     # Show every 4 steps on the x-axis
     all_steps = [step for line in plt.gca().lines for step in line.get_xdata()]
     if all_steps:
