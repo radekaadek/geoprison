@@ -60,16 +60,16 @@ def _get_cached_hex_neighbors_counts(hex_ids_fset: FrozenSet[str]) -> Dict[str, 
 
 
 # --- Strategy Definitions ---
-stringToStrat = {
-    'Tit-for-tat': axl.TitForTat(),
+string_to_strategy_object: dict[str, axl.Player] = {
+    'Tit-for-Tat': axl.TitForTat(),
     'Random': axl.Random(),
-    'Harrington': axl.SecondByHarrington(), # Note: axl.Harrington might be a different strategy if it exists
-    'Tester': axl.SecondByTester(), # Note: axl.Tester might be a different strategy
+    'Harrington': axl.SecondByHarrington(), # Axelrod's name for a strategy similar to Tit-for-2-Tats
+    'Tester': axl.SecondByTester(), # Axelrod's name for a strategy that tests and defects
     'Defector': axl.Defector(),
     'Cooperator': axl.Cooperator(),
     'Alternator': axl.Alternator(),
-    'Suspicious tit-for-tat': axl.SuspiciousTitForTat(),
-    'Forgiving tit-for-tat': axl.ForgivingTitForTat(),
+    'Suspicious Tit-for-Tat': axl.SuspiciousTitForTat(),
+    'Forgiving Tit-for-Tat': axl.ForgivingTitForTat(),
     'Grudger': axl.Grudger(),
 }
 
