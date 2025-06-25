@@ -3,7 +3,7 @@ import h3
 import time # Not strictly used in the provided snippet, but often useful
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Set, Tuple, FrozenSet, cast
+from typing import FrozenSet
 from collections import defaultdict
 from functools import lru_cache # Import lru_cache
 
@@ -20,7 +20,7 @@ app.add_middleware(
 )
 
 # --- Helper function to get valid neighbors ---
-def get_valid_neighbors(center_hex: str, all_hexes: Set[str]) -> Set[str]:
+def get_valid_neighbors(center_hex: str, all_hexes: set[str]) -> set[str]:
     """
     Finds neighbors of center_hex that are also in the all_hexes set.
     h3.grid_disk can raise H3CellError (a ValueError subclass) if center_hex is invalid.
@@ -33,7 +33,7 @@ def get_valid_neighbors(center_hex: str, all_hexes: Set[str]) -> Set[str]:
 
 # --- Cached function to calculate neighbor counts ---
 @lru_cache(maxsize=10)
-def _get_cached_hex_neighbors_counts(hex_ids_fset: FrozenSet[str]) -> Dict[str, int]:
+def _get_cached_hex_neighbors_counts(hex_ids_fset: FrozenSet[str]) -> dict[str, int]:
     """
     Calculates the number of valid neighbors for each hex ID in the input frozenset.
     This function is cached using LRU strategy.
@@ -102,7 +102,7 @@ async def strategies() -> idStrategyType:
     return idToStrategy
 
 @app.post("/game_step")
-async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: float = 0.0, r: float = 3, s: float = 0, t: float = 5, p: float = 1):
+async def game_step(hexToStrategyID: dict[str, int], rounds: int = 15, noise: float = 0.0, r: float = 3, s: float = 0, t: float = 5, p: float = 1):
     """
     Simulates one step of the spatial prisoner's dilemma.
     """
@@ -116,13 +116,13 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
 
     gameToUse = axl.Game(r=r, s=s, t=t, p=p)
 
-    hexToStrategy: Dict[str, str] = {}
+    hexToStrategy: dict[str, str] = {}
     for hexID, stratID in hexToStrategyID.items():
         if stratID not in idToStrategy:
             raise HTTPException(status_code=400, detail=f"Invalid strategy ID: {stratID} for hex {hexID}.")
         hexToStrategy[hexID] = idToStrategy[stratID][0]
 
-    all_hex_ids: Set[str] = set(hexToStrategy.keys())
+    all_hex_ids: set[str] = set(hexToStrategy.keys())
     if not all_hex_ids:
         # If there are no hexes, return an empty/appropriate response
         return {"updated_strategies": {}, "scores": {}}
@@ -139,7 +139,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
         raise HTTPException(status_code=400, detail=str(e))
 
     # --- Initialize Players ---
-    hexToPlayer: Dict[str, axl.Player] = {}
+    hexToPlayer: dict[str, axl.Player] = {}
     for hex_id, strategy_name in hexToStrategy.items():
         # stringToStrat should contain all strategy names from idToStrategy
         if strategy_name not in stringToStrat:
@@ -154,7 +154,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
 
     # --- Play Matches and Calculate Total Scores ---
     hexToTotalScore = defaultdict(float) # Use float for scores, then cast to int
-    played_pairs: Set[Tuple[str, str]] = set()
+    played_pairs: set[tuple[str, str]] = set()
 
     for center_hex in all_hex_ids:
         center_player = hexToPlayer[center_hex]
@@ -234,7 +234,7 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
 
     # --- Prepare Response ---
     # Convert scores to integers for the response
-    hexToTotalScore_int: Dict[str, int] = {hexID: int(round(score)) for hexID, score in hexToTotalScore.items()}
+    hexToTotalScore_int: dict[str, int] = {hexID: int(round(score)) for hexID, score in hexToTotalScore.items()}
     
     # Ensure all original hexes are in the scores dictionary, even if they played no games (e.g., isolated hexes)
     # or had a score of 0. defaultdict handles unplayed hexes as 0.
