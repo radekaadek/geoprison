@@ -73,19 +73,21 @@ string_to_strategy_object: dict[str, axl.Player] = {
     'Grudger': axl.Grudger(),
 }
 
-idStrategyType = Dict[int, Tuple[str, str]]
+idStrategyType = dict[int, tuple[str, str]]
 
-idToStrategy: idStrategyType = {
+StrategyIdMapType = dict[int, tuple[str, str]]
+
+idToStrategy: StrategyIdMapType = {
     0: ("Alternator", "gray"),
     1: ("Cooperator", "green"),
     2: ("Defector", "pink"),
-    3: ("Forgiving tit-for-tat", "brown"),
+    3: ("Forgiving Tit-for-Tat", "brown"),
     4: ("Grudger", "orange"),
-    5: ("Harrington", "red"), # Corresponds to axl.SecondByHarrington in stringToStrat
+    5: ("Harrington", "red"),
     6: ("Random", "black"),
-    7: ("Suspicious tit-for-tat", "purple"),
-    8: ("Tester", "yellow"),    # Corresponds to axl.SecondByTester in stringToStrat
-    9: ("Tit-for-tat", "blue"),
+    7: ("Suspicious Tit-for-Tat", "purple"),
+    8: ("Tester", "yellow"),
+    9: ("Tit-for-Tat", "blue"),
 }
 
 # --- API Endpoints ---
