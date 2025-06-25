@@ -110,6 +110,8 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
     if rounds <= 0: # Axelrod turns should be positive
         raise HTTPException(status_code=400, detail="Rounds must be a positive integer.")
 
+    start_time_simulation = time.time()
+
     gameToUse = axl.Game(r=r, s=s, t=t, p=p)
 
     hexToStrategy: Dict[str, str] = {}
@@ -238,6 +240,8 @@ async def game_step(hexToStrategyID: Dict[str, int], rounds: int = 15, noise: fl
         if hexID not in hexToTotalScore_int:
             hexToTotalScore_int[hexID] = 0
 
+    end_time_simulation = time.time()
+    print(f"Game step simulation completed in {end_time_simulation - start_time_simulation:.2f} seconds.")
 
     response = {
         "updated_strategies": nextHexToStrategy,
