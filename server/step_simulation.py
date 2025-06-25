@@ -55,9 +55,12 @@ def plot_simulation_times(log_file_paths):
         return
 
     # Add titles and labels
-    plt.title('Time Taken for Each Simulation Step Across Multiple Logs')
-    plt.xlabel('Step Number')
-    plt.ylabel('Time Taken (seconds)')
+    # plt.title('Time Taken for Each Simulation Step Across Multiple Logs')
+    plt.title('Czas Trwania Obliczeń Rundy Symulacji')
+    # plt.xlabel('Step Number')
+    plt.xlabel('Numer Tury')
+    # plt.ylabel('Time Taken (seconds)')
+    plt.ylabel('Czas Trwania Tury (sekundy)')
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.legend(title="Konfiguracja") # Add a legend to differentiate lines
     # Show every 4 steps on the x-axis
