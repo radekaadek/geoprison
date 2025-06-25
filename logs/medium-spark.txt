@@ -1,0 +1,61 @@
+Number of hexes: 273
+Game step simulation completed in 18.54 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 2.05 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.83 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.82 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.58 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.57 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.59 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.50 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.54 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.65 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.52 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.51 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.59 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.41 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.44 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.43 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.43 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.40 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.38 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Number of hexes: 273
+Game step simulation completed in 1.43 seconds.
+      INFO   127.0.0.1:39816 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+

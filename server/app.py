@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
             .config("spark.driver.memory", "4g") \
             .config("spark.executor.memory", "4g") \
             .config("spark.sql.shuffle.partitions", "50") \
-            .master("local[15]") \
+            .master("local[*]") \
             .getOrCreate()
         spark.sparkContext.setLogLevel("ERROR") # Reduce console verbosity
         print("SparkSession initialized successfully for local execution.")
@@ -298,6 +298,8 @@ async def game_step(
         raise HTTPException(status_code=503, detail="SparkSession not initialized. Service unavailable.")
     if play_match_pandas_udf is None or determine_next_strategy_pandas_udf is None:
         raise HTTPException(status_code=503, detail="Core UDFs not initialized. Service unavailable.")
+
+    print(f"Number of hexes: {len(hex_to_strategy_id_map)}")
 
     start_time_simulation = time.time()
 

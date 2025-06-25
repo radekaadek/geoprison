@@ -1,0 +1,41 @@
+Game step simulation completed in 18.12 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.86 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.71 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.64 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.60 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.59 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.54 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.53 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.52 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.48 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.47 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.48 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.48 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.52 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.45 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.43 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.42 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.40 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.42 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+Game step simulation completed in 1.40 seconds.
+      INFO   127.0.0.1:55828 - "POST /game_step?rounds=25&noise=0&r=3&s=0&t=5&p=1 HTTP/1.1" 200
+20
