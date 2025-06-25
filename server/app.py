@@ -60,7 +60,7 @@ def _get_cached_hex_neighbors_counts(hex_ids_fset: FrozenSet[str]) -> Dict[str, 
 
 
 # --- Strategy Definitions ---
-string_to_strategy_object: dict[str, axl.Player] = {
+stringToStrat: dict[str, axl.Player] = {
     'Tit-for-Tat': axl.TitForTat(),
     'Random': axl.Random(),
     'Harrington': axl.SecondByHarrington(), # Axelrod's name for a strategy similar to Tit-for-2-Tats
