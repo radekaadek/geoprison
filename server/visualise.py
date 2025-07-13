@@ -27,18 +27,18 @@ def visualize_strategies_per_round(states_data):
         print("No data provided to visualize.")
         return
 
-    # Translations for strategy names
-    strategy_translations = {
-        "Alternator": "Alternator",
-        "Random": "Losowy",
-        "Cooperator": "Kooperator",
-        "Forgiving Tit-for-Tat": "Wybaczający Wet za Wet",
-        "Tit-for-Tat": "Wet za Wet",
-        "Defector": "Defektor",
-        "Suspicious Tit-for-Tat": "Podejrzliwy Wet za Wet",
-        "Grudger": "Pamiętliwy",
-        "Tester": "Tester",
-        "Harrington": "Harrington"
+    # Translations and colors for strategy names
+    strategy_info = {
+        "Alternator": {"translation": "Alternator", "color": "gray"},
+        "Harrington": {"translation": "Harrington", "color": "red"},
+        "Cooperator": {"translation": "Kooperant", "color": "green"},
+        "Random": {"translation": "Losowy", "color": "black"},
+        "Grudger": {"translation": "Mściwy", "color": "orange"},
+        "Suspicious Tit-for-Tat": {"translation": "Podejrzliwy Wet za Wet", "color": "purple"},
+        "Tester": {"translation": "Tester", "color": "yellow"},
+        "Tit-for-Tat": {"translation": "Wet za Wet", "color": "blue"},
+        "Forgiving Tit-for-Tat": {"translation": "Wybaczający Wet za Wet", "color": "brown"},
+        "Defector": {"translation": "Zdrajca", "color": "pink"}
     }
 
     # Dictionary to store strategy counts per round
@@ -73,16 +73,17 @@ def visualize_strategies_per_round(states_data):
     # Plotting
     plt.figure(figsize=(12, 7))
 
-    # Get translated strategy names and sort them alphabetically
-    sorted_strategies_for_legend = sorted([strategy_translations.get(s, s) for s in all_strategies])
-
     # Create handles and labels in sorted order for the legend
     handles = []
     labels = []
 
-    for strategy in sorted(all_strategies, key=lambda s: strategy_translations.get(s, s)):
-        translated_strategy = strategy_translations.get(strategy, strategy)
-        line, = plt.plot(rounds, plot_data[strategy], marker='o', label=translated_strategy)
+    # Sort strategies by their translated names for consistent legend order
+    sorted_strategies = sorted(all_strategies, key=lambda s: strategy_info.get(s, {}).get("translation", s))
+
+    for strategy in sorted_strategies:
+        translated_strategy = strategy_info.get(strategy, {}).get("translation", strategy)
+        color = strategy_info.get(strategy, {}).get("color", "gray") # Default to gray if no color specified
+        line, = plt.plot(rounds, plot_data[strategy], marker='o', label=translated_strategy, color=color)
         handles.append(line)
         labels.append(translated_strategy)
 
@@ -91,7 +92,7 @@ def visualize_strategies_per_round(states_data):
     plt.title("Ilość Graczy na Strategię w Trakcie Poszczególnych Rund")
     plt.xticks(rounds) # Ensure all round numbers are shown on x-axis
     plt.grid(True, linestyle='--', alpha=0.7)
-    plt.legend(handles, labels, title="Strategia") # Use the sorted handles and labels
+    plt.legend(handles, labels, title="Strategia", loc='center right', bbox_to_anchor=(1, 0.5))
     plt.tight_layout()
     plt.show()
 
@@ -99,7 +100,7 @@ def visualize_strategies_per_round(states_data):
 # Run on all files with *states*.json in the current directory
 
 # with open('large-states.json') as f:
-#     sample_states_data = json.load(f)['states']
+#       sample_states_data = json.load(f)['states']
 
 # print(f"Number of players: {len(sample_states_data[0])}")
 
