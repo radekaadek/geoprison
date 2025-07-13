@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import collections
 import json
+import os
 
 def visualize_strategies_per_round(states_data):
     """
@@ -25,6 +26,20 @@ def visualize_strategies_per_round(states_data):
     if not states_data:
         print("No data provided to visualize.")
         return
+
+    # Translations for strategy names
+    strategy_translations = {
+        "Alternator": "Alternator",
+        "Random": "Losowy",
+        "Cooperator": "Kooperator",
+        "Forgiving Tit-for-Tat": "Wybaczający Wet za Wet",
+        "Tit-for-Tat": "Wet za Wet",
+        "Defector": "Defektor",
+        "Suspicious Tit-for-Tat": "Podejrzliwy Wet za Wet",
+        "Grudger": "Pamiętliwy",
+        "Tester": "Tester",
+        "Harrington": "Harrington"
+    }
 
     # Dictionary to store strategy counts per round
     # Format: {round_index: {strategy_name: count}}
@@ -58,67 +73,39 @@ def visualize_strategies_per_round(states_data):
     # Plotting
     plt.figure(figsize=(12, 7))
 
-    for strategy, counts in plot_data.items():
-        plt.plot(rounds, counts, marker='o', label=strategy)
+    # Get translated strategy names and sort them alphabetically
+    sorted_strategies_for_legend = sorted([strategy_translations.get(s, s) for s in all_strategies])
 
-    plt.xlabel("Round Number")
-    plt.ylabel("Number of Players")
-    plt.title("Number of Players per Strategy Over Rounds")
+    # Create handles and labels in sorted order for the legend
+    handles = []
+    labels = []
+
+    for strategy in sorted(all_strategies, key=lambda s: strategy_translations.get(s, s)):
+        translated_strategy = strategy_translations.get(strategy, strategy)
+        line, = plt.plot(rounds, plot_data[strategy], marker='o', label=translated_strategy)
+        handles.append(line)
+        labels.append(translated_strategy)
+
+    plt.xlabel("Numer Rundy")
+    plt.ylabel("Liczba Graczy")
+    plt.title("Ilość Graczy na Strategię w Trakcie Poszczególnych Rund")
     plt.xticks(rounds) # Ensure all round numbers are shown on x-axis
     plt.grid(True, linestyle='--', alpha=0.7)
-    plt.legend(title="Strategy")
+    plt.legend(handles, labels, title="Strategia") # Use the sorted handles and labels
     plt.tight_layout()
     plt.show()
 
 # --- Example Usage ---
-# You can replace this sample_states_data with your actual data.
-# The data provided in the prompt was incomplete, so this is a fabricated example
-# to demonstrate the script's functionality.
-# sample_states_data = [
-#     # Round 0
-#     {
-#         "84525c9ffffffff": {"strategy": "Forgiving Tit-for-Tat", "score": 0},
-#         "8452451ffffffff": {"strategy": "Tit-for-Tat", "score": 0},
-#         "84534b1ffffffff": {"strategy": "Cooperator", "score": 0},
-#         "84525d7ffffffff": {"strategy": "Alternator", "score": 0},
-#         "84526a1ffffffff": {"strategy": "Tit-for-Tat", "score": 0},
-#         "8443b0bffffffff": {"strategy": "Harrington", "score": 0},
-#         "84526bdffffffff": {"strategy": "Cooperator", "score": 0},
-#         "8452601ffffffff": {"strategy": "Harrington", "score": 0},
-#         "8452489ffffffff": {"strategy": "Suspicious Tit-for-Tat", "score": 0}
-#     },
-#     # Round 1 (some changes)
-#     {
-#         "p1": {"strategy": "Forgiving Tit-for-Tat", "score": 10},
-#         "p2": {"strategy": "Tit-for-Tat", "score": 12},
-#         "p3": {"strategy": "Cooperator", "score": 8},
-#         "p4": {"strategy": "Cooperator", "score": 7},
-#         "p5": {"strategy": "Alternator", "score": 9},
-#         "p6": {"strategy": "Harrington", "score": 11},
-#         "p7": {"strategy": "Tit-for-Tat", "score": 15}
-#     },
-#     # Round 2 (more changes)
-#     {
-#         "a1": {"strategy": "Tit-for-Tat", "score": 20},
-#         "a2": {"strategy": "Tit-for-Tat", "score": 25},
-#         "a3": {"strategy": "Cooperator", "score": 18},
-#         "a4": {"strategy": "Forgiving Tit-for-Tat", "score": 22},
-#         "a5": {"strategy": "Harrington", "score": 19}
-#     }
-# ]
+# Run on all files with *states*.json in the current directory
 
-# read from json instead of from a string
+# with open('large-states.json') as f:
+#     sample_states_data = json.load(f)['states']
 
-with open('states.json') as f:
-    sample_states_data = json.load(f)['states']
+# print(f"Number of players: {len(sample_states_data[0])}")
 
-print(f"Number of players: {len(sample_states_data[0])}")
+# visualize_strategies_per_round(sample_states_data)
 
-# If your data is in a string format, you might need to parse it first:
-# data_string = '{"states": [{"84525c9ffffffff":{"strategy":"Forgiving Tit-for-Tat","score":0}, ... }]}'
-# parsed_data = json.loads(data_string)
-# actual_states_data = parsed_data.get('states', [])
-
-# Call the visualization function with your data
-visualize_strategies_per_round(sample_states_data)
-
+for filename in filter(lambda x: x.rfind("states") != -1, os.listdir()):
+    with open(filename) as f:
+        states_data = json.load(f)['states']
+        visualize_strategies_per_round(states_data)
