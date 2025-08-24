@@ -1,0 +1,12 @@
+{
+    "0": ["Alternator", "gray"],
+    "1": ["Cooperator", "green"],
+    "2": ["Defector", "pink"],
+    "3": ["Forgiving Tit-for-Tat", "brown"],
+    "4": ["Grudger", "orange"],
+    "5": ["Harrington", "red"],
+    "6": ["Random", "black"],
+    "7": ["Suspicious Tit-for-Tat", "purple"],
+    "8": ["Tester", "yellow"],
+    "9": ["Tit-for-Tat", "blue"]
+}

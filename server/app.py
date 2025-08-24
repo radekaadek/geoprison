@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import os
+import json
 import axelrod as axl
 import h3
 import time
@@ -6,7 +8,7 @@ import pandas as pd
 import geopandas as gpd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Callable
+from typing import Callable, cast
 
 # --- PySpark Imports ---
 from pyspark.sql import SparkSession
@@ -214,19 +216,14 @@ string_to_strategy_object: dict[str, axl.Player] = {
 # Type alias for strategy ID mapping
 StrategyIdMapType = dict[int, tuple[str, str]]
 
+# Load the strategies from a JSON file
+strategies_json_path = os.path.join(os.path.dirname(__file__), "strategies.json")
+strategies_json: dict[str, str] = {}
+with open(strategies_json_path, "r") as f:
+    print(f"Loading strategies from {strategies_json_path}")
+    strategies_json = json.load(f)
 # Maps integer IDs (from frontend/API) to strategy names and display colors.
-id_to_strategy_info: StrategyIdMapType = {
-    0: ("Alternator", "gray"),
-    1: ("Cooperator", "green"),
-    2: ("Defector", "pink"),
-    3: ("Forgiving Tit-for-Tat", "brown"),
-    4: ("Grudger", "orange"),
-    5: ("Harrington", "red"),
-    6: ("Random", "black"),
-    7: ("Suspicious Tit-for-Tat", "purple"),
-    8: ("Tester", "yellow"),
-    9: ("Tit-for-Tat", "blue"),
-}
+id_to_strategy_info: StrategyIdMapType = cast(StrategyIdMapType, strategies_json)
 
 # --- API Endpoints ---
 @app.get("/")
