@@ -44,7 +44,7 @@ NEIGHBOR_INFO_SCHEMA = StructType([
 NEIGHBOR_DATA_ARRAY_TYPE = ArrayType(NEIGHBOR_INFO_SCHEMA)
 
 # Load barrier from disk
-barriers = gpd.read_file("PL.PZGiK.330.1401__OT_SWRS_L.gml")
+barriers = gpd.read_file("grzbiety.gpkg")
 target_crs = barriers.crs or "EPSG:4326"
 
 #### Geospatial Prisoner's Dilemma ####
@@ -222,8 +222,9 @@ strategies_json: dict[str, str] = {}
 with open(strategies_json_path, "r") as f:
     print(f"Loading strategies from {strategies_json_path}")
     strategies_json = json.load(f)
-# Maps integer IDs (from frontend/API) to strategy names and display colors.
-id_to_strategy_info: StrategyIdMapType = cast(StrategyIdMapType, strategies_json)
+    id_to_strategy_info: StrategyIdMapType = {}
+    for key, value in strategies_json.items():
+        id_to_strategy_info[int(key)] = (value[0], value[1])
 
 # --- API Endpoints ---
 @app.get("/")
@@ -314,7 +315,7 @@ async def game_step(
     initial_hex_data_tuples = []
     for hex_id_str, strat_id_int in hex_to_strategy_id_map.items():
         if strat_id_int not in id_to_strategy_info:
-            raise HTTPException(status_code=400, detail=f"Invalid strategy ID: {strat_id_int} for hex {hex_id_str}.")
+            raise HTTPException(status_code=400, detail=f"Invalid strategy ID: {strat_id_int} for hex {hex_id_str}. Valid IDs are {id_to_strategy_info.keys()} and {strat_id_int} is not one of them")
         strategy_name, _ = id_to_strategy_info[strat_id_int]
         initial_hex_data_tuples.append((hex_id_str, strategy_name))
 
